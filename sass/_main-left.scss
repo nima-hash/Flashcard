@@ -1,0 +1,49 @@
+.main-Left{
+  background: $leftContainer-bg;
+  width: 15%;
+  padding: 0.3rem;
+  @include flexColumn;
+  justify-content: flex-start;
+  padding-top: 0.5rem;
+
+}
+
+.main-Left_Header {
+  @include flexColumn;
+  width: 100%;
+  margin-bottom: 0.5rem;
+
+}
+
+// .search-Header {
+//   width: 100%;
+//   @include flexRow;
+//   justify-content: space-between;
+// }
+
+// .main-Left_Cards ul {
+//   margin-top: 0.5rem;
+// }
+.main-Left_Cards li {
+  padding-left: 0.3rem;
+  list-style: none;
+  line-height: 0.8rem;
+  width: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.main-Left_Cards li:hover , .main-Left_Cards p:hover{
+//  background-color: opa;
+opacity: 0.5;
+border-radius: 1rem;
+}
+
+.main-Left_Cards li.selected {
+  background-color: $selectedItem-bg;
+  border-radius: 1rem;
+
+}
+
+.main-Left_Cards {
+  width: 100%;
+
+}

@@ -1,0 +1,9 @@
+RewriteEngine On
+RewriteRule . index.php
+
+# api
+RewriteCondition %{Request_Method} GET
+RewriteRule ^api$ post.php [NC,L]
+
+
+
