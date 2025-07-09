@@ -1,16 +1,24 @@
 <?php
 
+
+
 require __DIR__ . "/inc/bootstrap.php";
+
+// Sanitize inputs
+if (is_array($_POST)) {
+  foreach ($_POST as $key => $value) {
+      $_POST[$key] = htmlspecialchars(strip_tags(trim($value)));
+  }
+}
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST');
 header('Access-Control-Allow-headers: Content-Type,Authorization,X-Requested-with');
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$action = strtolower($_SERVER['REQUEST_METHOD']);
 $uri = explode( '/', $uri );
 
-if ((isset($uri[1]) && $uri[1] != 'api') || !$action) {
+if ((isset($uri[1]) && $uri[1] != 'api') ) {
     header("HTTP/1.1 404 Not Found");
     exit();
 }
@@ -24,13 +32,15 @@ if ($_SERVER['CONTENT_TYPE'] === 'application/json') {
   $data = $_POST;
 }
 
-
-// Sanitize inputs
-if (is_array($data)) {
-  foreach ($data as $key => $value) {
-      $data[$key] = htmlspecialchars(strip_tags($value));
-  }
+if (isset($data['action']) && $data['action'] === 'login'){
+  $action = 'login';
+  unset($data['action']);
+}else{
+  $action = 'post';
 }
+
+
+
   
 $strMethodName = $action . 'Action';
 $objFeedController->{$strMethodName}($data);

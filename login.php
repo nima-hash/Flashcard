@@ -1,38 +1,25 @@
 <?php
 include "config/functions.php";
 
-if ($_SERVER["REQUEST_METHOD"] == "POST"){
+// if ($_SERVER["REQUEST_METHOD"] == "POST"){
 
-  $user = test_input($_POST['user__input']);
-  $pass = test_input($_POST['pass__input']);
+//   $user = test_input($_POST['user__input']);
+//   $pass = test_input($_POST['pass__input']);
 
-  $new_user = new Users;
+//   $new_user = new UserController;
 
-  if ($new_user->check_password($user, $pass)){
+//   if ($new_user->check_password($user, $pass)){
 
-    header("Location: index.php");
-    die();
-  } else {
-    echo "Wrong password !!"; //errormodule
+//     header("Location: index.php");
+//     die();
+//   } else {
+//     echo "Wrong password !!"; //errormodule
    
 
-  }
+//   }
   
 
-}
-
-// $id = $_SESSION['user_id'];
-//     $connection = new connection;
-//     $conn = $connection->connect();
-//     $query = "SELECT * FROM Users WHERE  user_id = '$id' LIMIT 1";
-//     $result = mysqli_query ($conn, $query);
-
-//     if ($result && mysqli_num_rows($result) > 0){
-
-//       $user_data = mysqli_fetch_assoc($result);
-//       return $user_data;
-
-//     } 
+// }
 
 
   ?>
@@ -63,5 +50,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST"){
       <p>have you forgotten your password? <a href="passReset.php">Reset now!!</a></p>
       <p>don't have an account? <a href="signup.php">Sign up now!!</a></p>
     </div>
+    <script src="login.js"></script>
   </body>
   </html>

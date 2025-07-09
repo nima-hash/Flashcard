@@ -9,7 +9,7 @@ class UserModel extends Database
 
     public function getUser($userName)
     {
-        return $this->select("SELECT * FROM Users WHERE userName = ? ", [$userName]);
+        return $this->select("SELECT * FROM Users WHERE userName = ?", [$userName]);
     }
 
     public function getDecks($user)

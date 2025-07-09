@@ -4,7 +4,7 @@ document.addEventListener ('DOMContentLoaded', function() {
         $e.preventDefault()
         const form = document.getElementById('signup__form')
         const formdata = new FormData (form)
-        let sanitizedData = {};
+        let sanitizedData = new FormData();
 
         //sanitize and validate
         formdata.forEach((value, key) => {
@@ -13,7 +13,11 @@ document.addEventListener ('DOMContentLoaded', function() {
                 alert("Invalid email address");
                 return;
             }
-            sanitizedData[key] = cleanValue;
+            if (key === "phone" && !/^\d+$/.test(cleanValue)) {
+                alert("Phone number must contain only digits");
+                return;
+            }
+            sanitizedData.append(key, cleanValue);
         });
         try {
             let response = await fetch("/api/register.php", {
@@ -22,6 +26,7 @@ document.addEventListener ('DOMContentLoaded', function() {
             });
     
             let result = await response.json(); // Get raw response
+            // window.location.replace("http://localhost:3000/login.php");
             console.log("Response from PHP:", result);
         } catch (error) {
             console.error("Fetch error:", error);

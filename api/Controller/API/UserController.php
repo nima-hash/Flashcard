@@ -1,29 +1,143 @@
 <?php
-class UserController 
+class UserController extends BaseController
 {
-    /** 
-    * "/user/list" Endpoint - Get list of users 
-    */
+   
 
-    protected function sendOutput($data, $httpHeaders = [])
+    // protected function sendOutput($data, $httpHeaders = [])
+    // {
+    //     header_remove('Set-Cookie'); // Remove if session-based authentication is needed
+        
+    //         if (!empty($httpHeaders) && is_array($httpHeaders)) {
+    //             foreach ($httpHeaders as $httpHeader) {
+    //                 header($httpHeader);
+    //             }
+    //         }
+
+    //     // If $data is an array, convert it to JSON
+    //     // if (is_array($data) || is_object($data)) {
+    //     //     header('Content-Type: application/json'); // Ensure JSON response
+    //     //     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    //     // } else {
+    //         echo $data;
+    //     // }
+
+    //     exit;
+    // }
+    private $connect;
+
+    public function __construct()
     {
-    header_remove('Set-Cookie'); // Remove if session-based authentication is needed
+        $this -> connect = new Connection;
+    }
+
+    public function getuser($userName)
+    {
     
-    if (!empty($httpHeaders) && is_array($httpHeaders)) {
-        foreach ($httpHeaders as $httpHeader) {
-            header($httpHeader);
+        // $query = "SELECT * FROM Users WHERE userName = :userName LIMIT 1";
+        // $stmt= $this -> connect -> prepareStatement($query);
+        // // $stmt = $this -> connection -> prepare($query);
+        // $stmt->execute(['userName' => $userName]);
+        // $userObject = $stmt -> fetch(); 
+        $userModel = new UserModel;
+        $userObject = $userModel -> getUser($userName);
+        return $userObject ?: false;
+    }
+
+    public function add_user($userdata)
+    {
+
+        try{
+        $user = test_input($userdata["user__input"]);
+        $email = test_input($userdata["email__input"]);
+        $phone = test_input($userdata["phone__input"]);
+        $comment = test_input($userdata["comment"]);
+        $birth = test_input($userdata["birth__input"]);
+        $address = test_input($userdata["address__input"]);
+        $password = $userdata["pass__input"];
+        $access = 1;
+        // $hash = password_hash($userdata['pass'], PASSWORD_DEFAULT);
+        
+        if (check_duplicate_user($user)){
+
+            $id = check_duplicate_user($user);
+            //validate password
+            if ($userdata["pass__input"] !== $userdata["pass-verify__input"]) {
+            $verifyPassErr = "Password and confirm Password fields do not match.please try again.";
+            }else{
+            if (validate_Pass($password)){
+                // Use password_hash() function to create a password hash
+                $hashedPassword = password_hash($password,PASSWORD_DEFAULT);
+                // save to db
+        
+                // $connection = new Connection;
+                // $conn = $connection->connect();
+                $query = "INSERT INTO Users (userName, pass, email, phone, user_id, access) VALUES ( :user, :hashedPassword, :email, :phone, :id, :access)";
+                $stmt= $this -> connect -> prepareStatement($query); 
+                // $stmt = $this -> connection -> prepare($query);
+                $stmt -> execute ([
+                'userName' => $user,
+                'pass' => $hashedPassword,
+                'email' => $email,
+                'phone' => $phone,
+                'user_id' => $id, 
+                'access' => $access]);
+                
+                // Return inserted row ID
+
+                return $this->connect->insertedId($stmt);
+                }
+            }
+        }
+        } catch (Exception $e) {
+        throw new Exception("Insert Query Error: " . $e->getMessage());
         }
     }
 
-    // If $data is an array, convert it to JSON
-    // if (is_array($data) || is_object($data)) {
-    //     header('Content-Type: application/json'); // Ensure JSON response
-    //     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    // } else {
-        echo $data;
-    // }
+    public function check_password($username, $password)
+    {
 
-    exit;
+        $user_data = $this->getuser($username);
+        if (!$user_data) {
+            throw new Exception("Error: This user does not exist. Do you want to sign up?", 400);
+        }
+       
+        $userCards = $this -> getAllUserCards ($user_data[0]['user_id']);
+        
+        $arrangedCards = arrangeCardsInDecks($userCards);
+        
+        if ($user_data[0]){
+            if (password_verify($password, $user_data[0]['pass'])){
+
+            $this -> assignUserdataToSession($user_data[0], $arrangedCards);          
+            return $userCards;
+            return true;
+            }
+            else {
+            return false;
+            }
+    
+        }
+        // }catch (Exception $e){
+            
+        // throw new Exception ('error:' . $e->getMessage());
+        // }  
+    }
+    
+    public function getAllUserCards ($userId)
+    {
+        $query = "SELECT * FROM Content WHERE userId = :userId";
+        $stmt = $this -> connect -> prepareStatement($query);
+        $stmt -> execute(['userId' => $userId]);
+        $cards = $stmt -> fetchAll();
+        return $cards;
+    }
+
+    public function assignUserdataToSession($user_data, $arrangedCards)
+    {
+        
+        list  ('user_id' => $_SESSION['user_id'], 'access' => $_SESSION['access'], 'userName' => $_SESSION['userName']) = $user_data;      
+        $_SESSION['decks'] = $arrangedCards;
+
     }
 
     public function listAction()
@@ -61,82 +175,130 @@ class UserController
         }
     }
 
+    public function loginAction($userData){
+        try{
+            if ($this->check_password($userData['user__input'], $userData['pass__input'])){
+
+                    header("Location: index.php");
+                    die();
+                  } else {
+                    echo "Wrong password !!"; //errormodule
+                   
+                
+                  }
+                  
+        }
+        catch(Exception $e){
+            $this->sendOutput(json_encode(array('error' => $e->getMessage())),
+            array('Content-Type: application/json', $e->getCode() ?: 500)
+        );
+        }
+    }
+
+
     public function postAction($userData)
     {
-        
-      $strErrorDesc = '';
-      $requestMethod = $_SERVER["REQUEST_METHOD"];
-        //   $arrQueryStringParams = $this->getQueryStringParams();
-        
-      if (strtoupper($requestMethod) == 'POST') {
-          try {
-            $user = new UserVerify;
-            
-            $user -> validateRegData($userData);
-           
-            //   if ($user->checkEmptyInput($userData)) {
-            //     throw new Exception("all input fieldsmust be filled.");
-            //   }  
-            //   if (!($user -> userValidate($userData))) {
-                
-            //     throw new Exception("this username already exists.");
-            //   } 
+        try {
+            // $strErrorDesc = '';
+            // $requestMethod = $_SERVER["REQUEST_METHOD"];
               
-            //   if (!($user -> passVerify($userData))) {
-            //     throw new Exception("verify password doesnot match");
-            //   }
-              
-            //   if (!($user -> emailValidate($userData))) {
-            //     throw new Exception("enter a valid email");
-            //   }
-              
-            //   if (!($user -> birthdayValidate($userData))) {
-            //     throw new Exception("user must be at least 10 years old");
-            //   }
-            //   if (!($user -> phoneValidate($userData))) {
-            //     throw new Exception("enter a valid phone in the 0XX XXXXXX format");
-            //   } 
-            //   if (!($user -> adressValidate($userData))) {
-            //     throw new Exception("enter a valid address");
-            //   } 
+            // if (strtoupper($requestMethod) == 'POST') {
+                // try {
 
-              $userEl = $user -> convertDataToDbFormat($userData);
-              $userModel = new UserModel();
+                    $user = new UserVerify; 
+                    $user -> validateRegData($userData); 
+      
+                    $userEl = $user -> convertDataToDbFormat($userData);
+                    $userModel = new UserModel();
+                   
+                    $registerResult = $userModel->registerUser($userEl);
+                     
+                    if ($registerResult)
+                    {
+                      $responseData = json_encode("The user was Successfully added.");
+                    }
+                  
+                  
+                // } catch (Exception $e) {
+                  
+                //     $strErrorDesc = $e->getMessage().' Something went wrong! Please contact support.';
+                //     $strErrorHeader = 'HTTP/1.1 500 Internal Server Error';
+                // }
+                
+            // } else {
+            //     $strErrorDesc = 'Method not supported';
+            //     $strErrorHeader = 'HTTP/1.1 422 Unprocessable Entity';
+            // }
+            
+            // send output 
+            // if (!$strErrorDesc) {
+                // http_response_code(200);
+                
+                $this->sendOutput(
+                    $responseData,
+                    array('Content-Type: application/json', 200)
+                );
+            // } else {
+            //   $this->sendOutput(json_encode(array('error' => $strErrorDesc)),
+            //         array('Content-Type: application/json', $strErrorHeader)
+            //     );
+            // }
+        } catch (Exception $e) {
+            $this->sendOutput(json_encode(array('error' => $e->getMessage())),
+                    array('Content-Type: application/json', $e->getCode() ?: 500)
+                );
+            // $strErrorDesc = $e->getMessage().' Something went wrong! Please contact support.';
+            // $strErrorHeader = 'HTTP/1.1 500 Internal Server Error';
+            }
+    //   $strErrorDesc = '';
+    //   $requestMethod = $_SERVER["REQUEST_METHOD"];
+        
+    //   if (strtoupper($requestMethod) == 'POST') {
+    //       try {
+    //         $user = new UserVerify;
+            
+    //         $user -> validateRegData($userData);
+           
+
+    //           $userEl = $user -> convertDataToDbFormat($userData);
+    //           $userModel = new UserModel();
 
               
              
-              $registerResult = $userModel->registerUser($userEl);
+    //           $registerResult = $userModel->registerUser($userEl);
 
               
-              if ($registerResult)
-              {
-                $responseData = json_encode("The user was Successfully added.");
-              }
+    //           if ($registerResult)
+    //           {
+    //             $responseData = json_encode("The user was Successfully added.");
+    //           }
             
             
-          } catch (Exception $e) {
-            
-              $strErrorDesc = $e->getMessage().' Something went wrong! Please contact support.';
-              $strErrorHeader = 'HTTP/1.1 500 Internal Server Error';
-          }
+    //       } catch (Exception $e) {
+    //         var_dump($e);
+    //         die;
+                
+    //           $strErrorDesc = $e->getMessage().' Something went wrong! Please contact support.';
+    //           $strErrorHeader = 'HTTP/1.1 500 Internal Server Error';
+    //       }
           
-      } else {
-          $strErrorDesc = 'Method not supported';
-          $strErrorHeader = 'HTTP/1.1 422 Unprocessable Entity';
-      }
+    //   } else {
+    //       $strErrorDesc = 'Method not supported';
+    //       $strErrorHeader = 'HTTP/1.1 422 Unprocessable Entity';
+    //   }
       
-      // send output 
-      if (!$strErrorDesc) {
+    //   // send output 
+    //   if (!$strErrorDesc) {
             
-          $this->sendOutput(
-              $responseData,
-              array('Content-Type: application/json', 'HTTP/1.1 200 OK')
-          );
-      } else {
-        $this->sendOutput(json_encode(array('error' => $strErrorDesc)),
-              array('Content-Type: application/json', $strErrorHeader)
-          );
-      }
+    //       $this->sendOutput(
+    //           $responseData,
+    //           array('Content-Type: application/json', 'HTTP/1.1 200 OK')
+    //       );
+    //   } else {
+    //     $this->sendOutput(json_encode(array('error' => $strErrorDesc)),
+    //           array('Content-Type: application/json', $strErrorHeader)
+    //       );
+    //   }
     }
 }
 
@@ -145,23 +307,17 @@ class UserVerify extends UserController
     
     private function checkEmptyInput($userData)
     {
-        try
-        {
-
-        
+       
         foreach($userData as $key => $value) {
             $trimmedValue = trim($value);
-            if (empty($trimmedValue)) {
+            if (!$trimmedValue) {
                 
-                throw new Exception( $key . " can not be empty.please enter a valid input");
+                throw new Exception( $key . " can not be empty.please enter a valid input", 400);
             } else {
                 $userData[$key] = htmlspecialchars(strip_tags($trimmedValue));
             }
         }
-        return true;
-        } catch (Exception $e){
-            return $e -> getMessage();            
-        }
+  
     }
     
     private function userValidate($userData)
@@ -171,37 +327,22 @@ class UserVerify extends UserController
 
         $userName = $userData['user__input'];
         $results = $userModel->getUser($userName);
-
-        try 
-        {
+        
+        
             if($results)
             {
-                throw new Exception("this user already exists please choose a new user");
+                throw new Exception("this user already exists please choose a new user", 400);
+            } else if(!preg_match("/^[ a-z0-9-\'äüößéáë]{2,31}$/i",$userData['user__input'])){
+                throw new Exception("please use only numbers and alphabets for username ", 400);
             }
-            if(!preg_match("/^[ a-z0-9-\'äüößéáë]{2,31}$/i",$userData['user__input'])){
-                throw new Exception("please use only numbers and alphabets for username ");
-            }
-            return true;
-        // if($results)
-        // {
-        //         return false;
-            
-        // }else {
-
-        //     return true;
-        // }
-        } catch (Exception $e){
-            throw new Exception($e->getMessage());
-            return false;
-        }
+           
     }
 
     private function passVerify($userData)
     {
-        try
-        {
+        
             if($userData['pass__input'] !== $userData['pass-verify__input']) {
-                throw new Exception('Password and confirm Password fields do not match.please try again');
+                throw new Exception('Password and confirm Password fields do not match.please try again', 400);
             }
             $pass = $userData['pass__input'];
             $uppercase = preg_match('@[A-Z]@', $pass);
@@ -210,83 +351,58 @@ class UserVerify extends UserController
             $specialChars = preg_match('@[^\w]@', $pass);
           
             if(!($uppercase && $lowercase && $number && $specialChars && strlen($pass)>8)){
-                throw new Exception('the password must contain at least one special character, one number, one small and one large alphabet and be at least 8 charachters long.');
+                throw new Exception('the password must contain at least one special character, one number, one small and one large alphabet and be at least 8 charachters long.', 400);
             }
-            
-            
-            return true;
-        } catch (Exception $e){
-            throw new Exception($e->getMessage());
-            return false;
-        }
     }
 
     private function emailValidate($userData)
-    {
-        try
-        {
-            // if(!preg_match('/^[a-z0-9-@_.äüößéáë]{2,31}$/i',$userData['email__input']) && !filter_var($userData['email__input'],FILTER_VALIDATE_EMAIL)) {
+    {   
+        
         if (!filter_var($userData['email__input'], FILTER_VALIDATE_EMAIL)) {
 
-            throw new Exception('Invalid email format');
+            throw new Exception('Invalid email format', 400);
             }
-            return true;
-        } catch (Exception){
-            return false;
+      
+    }
+
+    public function phoneValidate($userData){
+        if (!preg_match('/^\d+$/', $userData['phone__input'])){
+            throw new Exception ('Please Enter a valid phone number!!', 400);
         }
     }
 
+
+    
     public function validateRegData($userData)
     {   
-        try
-        {       
-        // $user = new UserVerify;
-       
-        $checkEmptyInput = $this -> checkEmptyInput($userData);
-        print_r($checkEmptyInput);
-        die;
-        if (!$checkEmptyInput) {
-            throw new Exception("Some required fields are empty");
-        }
-        $validateuser = $this -> userValidate($userData);
-        $passVerify = $this -> passVerify($userData);
-        // print_r($passVerify);
-        // die;
-        $emailValidate = $this -> emailValidate($userData);
+    
+        $this -> checkEmptyInput($userData);
+        $this -> userValidate($userData);
+        $this -> passVerify($userData);
+        $this -> emailValidate($userData);
+        $this -> phoneValidate($userData);
 
-        // If any of the validations failed, throw an exception
-        if (!$validateuser || !$passVerify || !$emailValidate) {
-            throw new Exception("There was an issue with the provided data. Please try again.");
-        }
-        // if($checkEmptyInput || !$validateuser || !$passVerify || !$emailValidate) {
-        //     throw new Exception("there was an unknown problem. please try again"); 
-        // }
-        return true;
-        } catch (Exception){
-            // throw new Exception($e -> getMessage());
-            return false;
-        }
-        
     }
 
     public function convertDataToDbFormat($userData)
     {
-        $userObj = [];
-        $userObj['userName'] = $userData['user__input'];
+        [
+            'user__input' => $userName,
+            'pass__input' => $pass,
+            'email__input' => $email,
+            'phone__input' => $phone, 
+            'address__input' => $address
+        ]= $userData;
 
-        // Use password_hash() function to create a password hash
-
-        $userObj['pass'] = password_hash($userData['pass__input'],PASSWORD_BCRYPT);
-        $userObj['email'] = $userData['email__input'];
-        $userObj['phone'] = $userData['phone__input'];
-        // $userObj['birthday'] = $userData['birth__input'];
-        $userObj['user_id'] = uniqid();
-        $userObj['adress'] = $userData['address__input'];
+        return [
+            'userName' => $userName,
+            'pass' => password_hash($pass, PASSWORD_BCRYPT),
+            'email' => $email,
+            'phone' => $phone,
+            'user_id' => uniqid(),
+            'address' => $address
+        ];
         
-        return $userObj;
-
-
-
     }
 }
 

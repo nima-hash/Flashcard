@@ -47,13 +47,16 @@ class BaseController
         protected function sendOutput($data, $httpHeaders=array())
         {
             header_remove('Set-Cookie');
-            
+            // var_dump($httpHeaders);
+            // die; 
             if (is_array($httpHeaders) && count($httpHeaders)) {
                
-                foreach ($httpHeaders as $httpHeader) {
-                    header($httpHeader);
+                // foreach ($httpHeaders as $httpHeader) {
+                //     header($httpHeader);
                   
-                }
+                // }
+                header($httpHeaders[0]);
+                http_response_code($httpHeaders[1]);
                 
             }
             echo $data;

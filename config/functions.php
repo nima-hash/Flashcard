@@ -44,7 +44,7 @@ function test_input($data) {
 
 //prevents duplicate user names
 function check_duplicate_user($user){
-  $stmt = new Users;
+  $stmt = new UserController;
   // $conn = $connection->connect();
   if($stmt -> getuser($user)) {
 
