@@ -1,6 +1,8 @@
 <?php
-// session_start();
-include "database.php";
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ .  "/database.php";
 
 function page_redirect($url){
   header("location: $url");
@@ -11,18 +13,10 @@ function checkLogin(){
 
   if (!isset($_SESSION['user_id'])) {
     //redirect to login
-    header("location: login.php");
-    die;
+    header("location: " . __DIR__ . "/../login.php");
+    exit();
   }
 
-}
-
-function arrangeCardsInDecks ($allCards) {
-  $arrangedDecks=[];
-      foreach ($allCards as $card){
-          $arrangedDecks[$card['deckName']][] = $card;
-      }
-  return $arrangedDecks;
 }
 
 function console_log($variable) {
@@ -35,64 +29,53 @@ function validateDate($date, $format = 'Y-m-d'){
   return $d && $d->format($format) === $date;
 }
 
-function test_input($data) {
-  $data = trim($data);
-  $data = stripslashes($data);
-  $data = htmlspecialchars($data);
-  return $data;
-}
-
-//prevents duplicate user names
-function check_duplicate_user($user){
-  $stmt = new UserController;
-  // $conn = $connection->connect();
-  if($stmt -> getuser($user)) {
-
-  
-  // $query = "SELECT * FROM Users WHERE userName = :user ";
-  // $stmt = $this -> connect -> prepareStatement($query);
-  // $stmt -> execute("userName" -> $user);
-  // $result = $stmt-> fetchAll();
 
 
 
 
-
-  // $result = $conn->query($sql);
-  
-  // if ($result->num_rows > 0) {
-  //   // output data of each row
-  //   // while($row = $result->fetch_assoc()) {
-  //   //   echo "id: " . $row["id"]. " - Name: " . $row["firstname"]. " " . $row["lastname"]. "<br>";
-  //   // }
-    return false;
-  } else {
-    $id = uniqid();
-    return $id;
-  }
-
-}
-
-//validate pass
-function validate_Pass($pass){
-
-    // satisfy password conditions
-    $password = filter_var($pass, FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-    $uppercase = preg_match('@[A-Z]@', $password);
-    $lowercase = preg_match('@[a-z]@', $password);
-    $number    = preg_match('@[0-9]@', $password);
-    $specialChars = preg_match('@[^\w]@', $password);
-    
-    if($uppercase && $lowercase && $number && $specialChars && strlen($password)>8){
-      
-      return true;
-      
-    
-    }else{
-
-      return false;
-    
+  // Make Object Values INT
+  function convertNumericStringsToInt(array $array): array
+{
+    foreach ($array as $key => $value) {
+        if (is_string($value)) {
+            // Check if string is numeric 
+            if (is_numeric($value)) {
+                // Check if the numeric string is an integer
+                if (strpos($value, '.') === false && strpos($value, ',') === false) {
+                    $array[$key] = (int)$value;
+                }
+            }
+        } elseif (is_array($value)) {
+            // Recursively process nested arrays
+            $array[$key] = convertNumericStringsToInt($value);
+        }
     }
-  }
+    
+    return $array;
+}
 
+//Sets the conditions for password strength
+function validate_password_strength(string $password): ?string
+{
+    if (strlen($password) < 8) {
+        return "Password must be at least 8 characters long.";
+    }
+    // At least one special character
+    if (!preg_match('/[!@#$%^&*(),.?":{}|<>]/' , $password)) {
+        return "Password must contain at least one special character.";
+    }
+    // At least one number
+    if (!preg_match('/\d/', $password)) {
+        return "Password must contain at least one number.";
+    }
+    // At least one capital letter
+    if (!preg_match('/[A-Z]/', $password)) {
+        return "Password must contain at least one capital letter.";
+    }
+    // At least one small letter
+    if (!preg_match('/[a-z]/', $password)) {
+        return "Password must contain at least one small letter.";
+    }
+    return null;
+}
 ?>

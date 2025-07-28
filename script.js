@@ -1,1301 +1,1543 @@
-document.addEventListener('DOMContentLoaded', function(){
+import { showSystemMessage, fetchData, renderNavbar , escapeHtml, shuffleArray} from './utils.js';
 
-  //toggle icons in Navbar
-  const assignToggleToNavabr = () => {
-    const navbarIcons = document.querySelectorAll("button.dropdown-toggle");
-    navbarIcons.forEach((navbarIcon, index) => {
-      switch (index) {
-        case 0:
-          navbarIcon.setAttribute('toggle-target', 'categoryDropdown');
-          break;
-        case 1:
-          navbarIcon.setAttribute('toggle-target', 'deckDropdown');
-          break;
-        case 2:
-          navbarIcon.setAttribute('toggle-target', 'learnDropdown');
-          break;
-        case 3:
-          navbarIcon.setAttribute('toggle-target', 'searchDropdown');
-          break;
-        case 4:
-          navbarIcon.setAttribute('toggle-target', 'userDropdown');
-          break;  
-        case 5:
-          navbarIcon.setAttribute('toggle-target', 'userDropdown');
-          break;  
-        default:
-          navbarIcon.setAttribute('toggle-target', 'userDropdown');
-          break;
-      }
-      navbarIcon.addEventListener('click', toggle);
-    })
+// Global state variables for index.php
+let isGuest = window.appConfig.isGuest;
+let userName = window.appConfig.userName;
 
-  }
+//Elements 
+const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+
+let currentDeckId = null; // ID of the currently selected deck
+let decks = []; // Array of all decks
+let categories = []; // Array of all categories
+let cards = []; // Cards of the currently selected deck (for current deck view)
+let studyMode = {
+    active: false,
+    deckId: null,
+    cards: [], // Cards for the current study session
+    currentIndex: 0
+};
 
 
-  const addDeckBtn = document.getElementById('add_Deck__Btn');
-  addDeckBtn.addEventListener('click', function(){
-    // opens a this.ariaModal
-    let modal = makeModal();
-    modal.innerHTML = `
-      <div class = "login__Cont">
-        <div class="login_header">
-          <h6>Please fill out Deck information:</h6>
-        </div>
-        <form class="login__form" id = "add-Deck__Form" method = "post">
+// --- UI Rendering Functions ---
 
-          <label class="label" for="deckName__input">Deckname: </label>
-          <input class="deckName__input" required type="text" name="deckName__input" id="deckName__input" placeholder="Name of new deck ...">
-          <div class="invalid-input__err">
-            <?php echo $deckNameErr; ?>
-          </div>
 
-          <div class="category__Sec">
-                 
-            <div>
-              <label class="label" for="category__input">Category: </label>
-              <select name="category__input" id="category__input" required >
-                <optgroup label="Language">
-                  <optgroup label="words">
-                    <option value="deutsch">Deutsch</option>
-                  </optgroup>
-                  <optgroup label="expressions">
-                    <option value="deutsch">deutsch</option>
-                  </optgroup>
-                </optgroup>
-                <optgroup label="General">
-                  <option value="math">Math</option>
-                </optgroup>
-              </select>
-              <div class="invalid-input__err">
-                <?php echo $categoryErr; ?>
-              </div>
-            </div>
+async function renderDecksList() {
+    const decksNameList = document.getElementById('decksNameList');
+    if (!decksNameList) return; 
 
-            <div>
-              <button type="button" class="icon__btn" id="add_Category__Btn">
-                <span class="material-symbols-outlined">
-                  add
-                </span>
-              </button>
-            </div>
+    decksNameList.innerHTML = '';
+    
+    // Remove initial message if it exists
+    const noDecksMessage = document.getElementById('noDecksMessage');
+    if (noDecksMessage) noDecksMessage.remove(); 
 
-          </div>
+    if (isGuest) {
+        decksNameList.innerHTML = '<p class="text-white-50 text-center mt-5" id="noDecksMessage">Please log in to manage your decks.</p>';
+        return;
+    }
 
-          <label class="label" for="description__input">Description</label>
-          <textarea name="description__input" id="description__input" cols="30" rows="10" placeholder="Enter a brief explaination"></textarea>  
-          <div class="invalid-input__err">
-            <?php echo $descriptionErr; ?>
-          </div> 
+    try {
+        const data = await getDecks(); 
+        decks = data.decks || []; 
 
-          <div class="formBtns__div">
-            <button class= "btn" type="submit" id= "submitDeckBtn">Register</button>
-            <button class= "btn" type="reset">Cancel</button>
-          </div>
-        </form>
-      </div>
-    `
-    let form = document.getElementById('add-Deck__Form');
-    form.addEventListener('submit', function(e){
-      e.preventDefault();
-      let deckData = new FormData(this);
-      let action =  'addDeck';
-      // show(post(deckData, action)); 
-      fetch( 'http://localhost:3000/api/index.php?action=' + action,
-      { method : 'POST',
-      // headers: { 
-      //   'Content-Type' : 'application/json'
-      // },
-      // body : JSON.stringify(deckData)
-      body: deckData
-      })
-      .then(res => {return res.json();
-      })
-      .then(async data => {
-        switch (data) {
-          case 'The deck was Successfully added.':
-            modal.parentElement.remove();
-            var decksArr = await getDecksArr();
-            await showDecks(decksArr);
-            let deckName = deckData.get('deckName__input');
-            selectDeck(deckName);
-
-            
-            
-            showDeckDetails(data[0]);
-            break;
-        
-          case 'There are no card found for this Deck':
-            console.log(data);
-           
-            default:
-            console.log(data)
-            break;
-          }
+        if (decks.length === 0) {
+            decksNameList.innerHTML = '<p class="text-white-50 text-center mt-5" id="noDecksMessage">No decks found. Click "Add Deck" to create one!</p>';
+            return;
         }
-      )
-      .catch( error => console.error('Error:', error)) 
-    })   
-  });
+        decks.forEach(deck => {
+            const deckItem = document.createElement('div');
+            deckItem.className = 'deck-item d-flex justify-content-between align-items-center';
+            deckItem.dataset.deckId = deck.id;
+            deckItem.innerHTML = `
+                <h6>${escapeHtml(deck.deckName)}</h6>
+                
+            `;
+            decksNameList.appendChild(deckItem);
+        });
 
-  const searchDeckInput = document.getElementById('deckSearch');
+        // If a deck was previously selected, re-select it
+        if (currentDeckId) {
+            const selectedDeckEl = document.querySelector(`.deck-item[data-deck-id="${currentDeckId}"]`);
+            if (selectedDeckEl) {
+                selectedDeckEl.classList.add('active');
+            } else {
+                currentDeckId = null; 
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load decks:', error);
+        decksNameList.innerHTML = '<p class="text-danger text-center mt-5" id="noDecksMessage">Failed to load decks. Please try again.</p>';
+    }
+}
 
-  searchDeckInput.addEventListener('keyup', async function(){
-    let searchTerm = escapeHtml(searchDeckInput.value);
-    let searchCardsChkBx = document.getElementById('searchCardsChkBx');
-    if (searchCardsChkBx.checked)
-    {
-      // check for valid searchterm
-      const searchterm = this.value;
-      if (!searchterm) {
-        const container = document.getElementById('mainCenterDisplay');
-        container.innerHTML = '';
+function renderDeckSpecs(deckId) {
+    const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+    if (!mainCenterDisplay) return;
 
-      }else{
-        let searchResult = await searchCards(searchTerm);
-        showCardSearch(searchResult, searchTerm);
-      }
-      
-    } else
-    {
-      let deckArr = await getDecksArr();
-      const matches = deckArr.filter(s => s.includes(searchTerm));
-      showDecks(matches)   
+    mainCenterDisplay.innerHTML = ''; 
+    const deck = decks.find(d => d.id == deckId);
+    console.log(deck)
+    if (!deck) {
+        mainCenterDisplay.innerHTML = '<p class="text-danger text-center mt-5">Deck not found.</p>';
+        return;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'deck-spec-card card-animated';
+    const categoryName = getDeckNameById(categories, deck.category_id)
+    container.innerHTML = `
+        <div class="deck-header">
+            <div>
+                <h2 class="deck-title">${deck.deckName}</h2>
+                <p class="deck-category">${categoryName}</p>
+            </div>
+            <div class="deck-mastery">
+                <span>${deck.mastery}%</span>
+                <small>Mastery</small>
+            </div>
+        </div>
+
+        <div class="deck-meta">
+            <p><strong>Description:</strong><br>${deck.deckDescription?.replace(/\n/g, '<br>')}</p>
+            <p><strong>Total Cards:</strong> ${deck.totalCards}</p>
+            <p><strong>Created:</strong> ${deck.timeCreated}</p>
+            <p><strong>Last Edited:</strong> ${deck.timeEdited}</p>
+        </div>
+
+        <div class="deck-actions">
+            <div class="left">
+                <button class="btn btn-glass text-info study-deck-btn" data-deck-id="${deck.id}">
+                    <span class="material-symbols-outlined">school</span>
+                    <span class="btn-text">Study</span>
+                </button>
+                <button class="btn btn-glass text-success quiz-deck-btn" data-deck-id="${deck.id}">
+                    <span class="material-symbols-outlined">quiz</span>
+                    <span class="btn-text">Exam</span>
+                </button>
+                <button class="btn btn-glass text-primary add-card-to-deck-btn" data-deck-id="${deck.id}">
+                    <span class="material-symbols-outlined">note_add</span>
+                    <span class="btn-text">Add Cards</span>
+                </button>
+            </div>
+            <div class="right">
+                <button class="btn btn-glass text-warning edit-deck-btn" data-deck-id="${deck.id}">
+                    <span class="material-symbols-outlined">edit</span>
+                    <span class="btn-text">Edit</span>
+                </button>
+                <button class="btn btn-glass text-danger delete-deck-btn" data-deck-id="${deck.id}">
+                    <span class="material-symbols-outlined">delete</span>
+                    <span class="btn-text">Delete</span>
+                </button>
+            </div>
+        </div>
+    `;
+
+    mainCenterDisplay.appendChild(container);
+}
+
+async function renderCardsList(deckId, highlightCardId = null, initialCardId = null) {
+    const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+    if (!mainCenterDisplay) return; 
+
+    mainCenterDisplay.innerHTML = ''; 
+
+    const deck = decks.find(d => d.id == deckId);
+    if (!deck) {
+        mainCenterDisplay.innerHTML = '<p class="text-danger text-center mt-5">Deck not found.</p>';
+        return;
+    }
+    console.log(deck)
+    // Header for cards list
+    const cardListHeader = document.createElement('div');
+    cardListHeader.className = 'd-flex justify-content-between align-items-center mb-3';
+    cardListHeader.innerHTML = `
+        <h4 class="text-info mb-0">${escapeHtml(deck.deckName)} Cards</h4>
+        <div>
+            <button type="button" class="btn btn-sm btn-outline-primary me-2 add-card-to-deck-btn" id="addCardBtn" data-deck-id="${deckId}">
+                <span class="material-symbols-outlined">add</span> Add Card
+            </button>
+            <button type="button" class="btn btn-sm btn-primary study-deck-btn" id="startStudyBtn" data-deck-id="${deckId}">
+                <span class="material-symbols-outlined">school</span> Start Study
+        </div>
+    `;
+    mainCenterDisplay.appendChild(cardListHeader);
+
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 overflow-auto flex-grow-1';
+    cardsContainer.id = 'cardsContainer';
+    mainCenterDisplay.appendChild(cardsContainer);
+
+    try {
+        const data = await fetchData(`/api/cards/get?deckId=${deckId}`);
+        cards = data.cards || []; 
+
+        if (cards.length === 0) {
+            cardsContainer.innerHTML = '<p class="text-white-50 text-center w-100 mt-5">No cards in this deck. Click "Add Card" to create one!</p>';
+            return;
+        }
+
+        cards.forEach(card => {
+            const cardCol = document.createElement('div');
+            cardCol.className = 'col';
+            cardCol.innerHTML = `
+                <div class="card card-fixed shadow-sm ">
+                    <div class="card-body card-clickable card-interactive" ${highlightCardId == card.id ? 'highlighted-card' : ''}" card-id="${escapeHtml(card.cardId)}" card-fav="${escapeHtml(card.fav)}" card-difficulty="${escapeHtml(card.difficulty)}" card-correct-counter="${escapeHtml(card.correctCounter)}">
+                           
+                        <p class="card-text card-front text-white-50 mb-0">${escapeHtml(card.frontContent)}</p>
+                        <p class="card-text card-back text-white-50 d-none mb-0">${escapeHtml(card.backContent)}</p>
+                        
+                    </div>
+                </div>
+            `;
+            cardsContainer.appendChild(cardCol);
+            
+        });
+        if (initialCardId) {
+            const cardToOpen = cards.find(c => c.id == initialCardId);
+            if (cardToOpen) {
+                renderSingleCardView(cardToOpen, deck);
+            } else {
+                showSystemMessage('Specific card not found in this deck.', 'error', true);
+            }
+        }
+        // Add scroll to and highlight logic
+        if (highlightCardId) {
+            const cardElementToHighlight = document.getElementById(`card-${highlightCardId}`);
+            if (cardElementToHighlight) {
+                cardElementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    cardElementToHighlight.classList.remove('highlighted-card');
+                }, 3000);
+            }
+        }
+
+        document.querySelectorAll('.card .card-body').forEach(cardBody => {
+            cardBody.addEventListener('click', (event) => {
+                const isButton = event.target.closest('.btn');
+                if (isButton) return; 
+
+                const front = cardBody.querySelector('.card-front');
+                const back = cardBody.querySelector('.card-back');
+
+                front.classList.toggle('d-none');
+                back.classList.toggle('d-none');
+            });
+        });
+
+        
+
+    } catch (error) {
+        console.error('Failed to load cards for deck:', error);
+        cardsContainer.innerHTML = '<p class="text-danger text-center w-100 mt-5">Failed to load cards. Please try again.</p>';
     }
     
-  });
+}
 
-  //modal
-  function makeModal(){
-    var modal = document.createElement('div');
-    modal.setAttribute('id' , 'modal');
+async function renderCategoriesList(modalBodyElement) {
+    const categoryListUl = modalBodyElement.querySelector('#categoryList');
+    
+    if (!categoryListUl) { 
+        console.error('Category list UL not found in modalBodyElement.');
+        return;
+    }
 
-    modal.style.zIndex = '2';
-    modal.style.width = "100%";
-    modal.style.height = "100%";
-    modal.style.position = "fixed";
-    modal.style.backgroundColor = "rgba(0,0,0,0.9)";
-    modal.style.top = "0";
-    modal.style.left = "0";
-    modal.style.display = 'flex';
-    modal.style.justifyContent = 'center';
-    modal.style.alignItems = 'center';
+    try {
+        const[customCategories,defaultCategories] = await getCategories()
+        
+        // Clear previous content
+        categoryListUl.innerHTML = '';
+                // Render Custom Categories section
+                console.log(defaultCategories)
+        if (customCategories.length > 0) {
+            const customHeader = document.createElement('li');
+            customHeader.className = 'list-group-item bg-dark text-info border-secondary mb-2 rounded fw-bold';
+            customHeader.textContent = 'Your Custom Categories';
+            categoryListUl.appendChild(customHeader);
 
-    var close = document.createElement('span');
-    close.style.position = 'absolute';
-    close.style.top = '15px'
-    close.style.right = '35px'
-    close.style.color = "#f1f1f1"
-    close.style.fontSize = '2rem'
-    close.style.transition = '0.3s'
-    close.innerHTML = `
-    &times;`
-    close.addEventListener('click',()=>{
-      if(confirm('do you want to save the changes?')){
-        console.log('cansel confirmed');
-        // window.localStorage.setItem("projects", JSON.stringify(projects));
-        modal.remove()   
-      }
-    })
+            customCategories.forEach(cat => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center bg-secondary text-white border-secondary mb-2 rounded';
+                li.innerHTML = `
+                    <span>${escapeHtml(cat.name)}</span>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-2 edit-category-btn" data-category-id="${cat.id}" data-category-name="${escapeHtml(cat.name)}" title="Edit Category">
+                            <span class="material-symbols-outlined">edit</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-category-btn" data-category-id="${cat.id}" title="Delete Category">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    </div>
+                `;
+                categoryListUl.appendChild(li);
+            });
+        } else {
+            const noCustomMessage = document.createElement('li');
+            noCustomMessage.className = 'list-group-item bg-secondary text-white-50 border-secondary mb-2 rounded';
+            noCustomMessage.textContent = 'No custom categories yet.';
+            categoryListUl.appendChild(noCustomMessage);
+        }
 
-    var content = document.createElement('div');
-    content.setAttribute('id' , 'modalContent');
-    content.style.position = 'relative';
-    content.style.padding = '2rem ';
-    content.style.backgroundColor = 'white'
-    content.style.maxWidth = "80%";
-    content.style.margin = '40px Auto'
+        // Render Default Categories section
+        if (defaultCategories.length > 0) {
+            const defaultHeader = document.createElement('li');
+            defaultHeader.className = 'list-group-item bg-dark text-info border-secondary mt-3 mb-2 rounded fw-bold';
+            defaultHeader.textContent = 'Default Categories';
+            categoryListUl.appendChild(defaultHeader);
+
+            defaultCategories.forEach(cat => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item bg-secondary text-white border-secondary mb-2 rounded';
+                li.textContent = escapeHtml(cat.name); 
+                li.setAttribute("data-category-id", cat.id);
+                li.setAttribute("data-category-name", cat.name);
+                categoryListUl.appendChild(li);
+            });
+        }
+
+        // Handle case where both custom and default are empty
+        if (customCategories.length === 0 && defaultCategories.length === 0) {
+            categoryListUl.innerHTML = '<li class="list-group-item bg-secondary text-white-50 border-secondary">No categories found.</li>';
+        }
+
+    } catch (error) {
+        console.error('Failed to load categories:', error);
+        categoryListUl.innerHTML = '<p class="text-danger text-center w-100 mt-5">Failed to load categories. Please try again.</p>';
+    }
+}
+
+function renderSingleCardView(card, deck) {
+    const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+    if (!mainCenterDisplay) return;
+
+    mainCenterDisplay.innerHTML = ''; 
+
+    const singleCardUI = document.createElement('div');
+    singleCardUI.className = 'single-card-container d-flex flex-column align-items-center justify-content-center flex-grow-1';
+    singleCardUI.innerHTML = `
+        <!-- Back to Deck Button -->
+        <div class="w-100 text-start mb-3">
+            <button type="button" class="btn btn-outline-secondary" id="backToDeckBtn" data-deck-id="${deck.id}">
+                <span class="material-symbols-outlined">arrow_back</span> Back to ${escapeHtml(deck.deckName)}
+            </button>
+        </div>
+
+        <!-- Single Card Display -->
+        <div class="study-card shadow-lg p-4 mb-4 flex-grow-1 d-flex flex-column justify-content-center align-items-center" style="width: 100%; max-width: 600px;">
+            <div class="study-card-inner">
+                <div class="study-card-front">${escapeHtml(card.frontContent)}</div>
+                <div class="study-card-back">
+                    ${escapeHtml(card.backContent)}
+                    <div class="card-actions-overlay">
+                        <button type="button" class="btn btn-sm btn-outline-secondary edit-card-btn" data-card-id="${card.id}" data-deck-id="${deck.id}" title="Edit Card">
+                            <span class="material-symbols-outlined">edit</span> Edit
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-card-btn" data-card-id="${card.id}" data-deck-id="${deck.id}" title="Delete Card">
+                            <span class="material-symbols-outlined">delete</span> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Show Answer Button -->
+        <button type="button" class="btn btn-primary mb-3" id="showAnswerBtn">Show Answer</button>
+    `;
+    mainCenterDisplay.appendChild(singleCardUI);
+
+    const studyCardElement = singleCardUI.querySelector('.study-card');
+    const studyCardInnerElement = singleCardUI.querySelector('.study-card-inner');
+    const showAnswerBtn = singleCardUI.querySelector('#showAnswerBtn');
+
+    // Initial state: card front visible
+    studyCardInnerElement.classList.remove('flipped');
+    showAnswerBtn.classList.remove('d-none');
+
+    // Click on card to flip
+    studyCardElement.addEventListener('click', function() {
+        studyCardInnerElement.classList.toggle('flipped');
+        if (studyCardInnerElement.classList.contains('flipped')) {
+            showAnswerBtn.classList.add('d-none');
+        } else {
+            showAnswerBtn.classList.remove('d-none');
+        }
+    });
+
+    // Click on "Show Answer" button to flip
+    showAnswerBtn.addEventListener('click', function() {
+        studyCardInnerElement.classList.add('flipped');
+        showAnswerBtn.classList.add('d-none');
+    });
+
+    // Event listener for Back to Deck button
+    singleCardUI.querySelector('#backToDeckBtn').addEventListener('click', async () => {
+        await renderCardsList(deck.id);
+    });
+
+    // Event listeners for Edit/Delete buttons within this view (delegated)
+    singleCardUI.addEventListener('click', async (event) => {
+        if (event.target.closest('.edit-card-btn')) {
+            const btn = event.target.closest('.edit-card-btn');
+            const cardId = btn.dataset.cardId;
+            const deckId = btn.dataset.deckId;
+            const cardToEdit = cards.find(c => c.id == cardId); 
+            if (cardToEdit) {
+                openCardModal(deckId, cardToEdit);
+            }
+        }
+
+        if (event.target.closest('.delete-card-btn')) {
+            const btn = event.target.closest('.delete-card-btn');
+            const cardId = btn.dataset.cardId;
+            const deckId = btn.dataset.deckId;
+            if (confirm('Are you sure you want to delete this card?')) {
+                try {
+                    const result = await fetchData('/api/cards/delete', 'POST', { id: cardId, deck_id: deckId });
+                    if (result.success) {
+                        showSystemMessage(result.message, 'info');
+                        // After deleting, check if there are other cards in the deck
+                        const remainingCards = cards.filter(c => c.id != cardId);
+                        if (remainingCards.length > 0) {
+                            // If cards remain, re-render the deck's card list
+                            await renderCardsList(deckId);
+                        } else {
+                            // If no cards remain, go back to the deck list view
+                            currentDeckId = null;
+                            await renderDecksList();
+                            document.getElementById('mainCenterDisplay').innerHTML = `
+                                <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                                    <h2 class="text-info">Welcome to Flashcards V1.0!</h2>
+                                    <p class="lead">Select a deck from the left to view cards or start studying.</p>
+                                    <p>Use the navigation bar to add new decks or categories.</p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        showSystemMessage(result.message, 'error', false);
+                    }
+                } catch (error) {
+                    // Handled by fetchData
+                }
+            }
+        }
+    });
+}
+
+// --- Modal Instances ---
+let deckModal;
+let cardModal;
+let categoryModal;
+
+// Initialize Bootstrap Modals 
+document.addEventListener('DOMContentLoaded', () => {
+    const deckModalElement = document.getElementById('deckModal');
+    if (deckModalElement) {
+        deckModal = new bootstrap.Modal(deckModalElement);
+    }
+
+    const cardModalElement = document.getElementById('cardModal');
+    if (cardModalElement) {
+        cardModal = new bootstrap.Modal(cardModalElement);
+    }
+
+    const categoryModalElement = document.getElementById('categoryModal');
+    if (categoryModalElement) {
+        categoryModal = new bootstrap.Modal(categoryModalElement);
+    }
+});
 
 
+// Deck help functions
 
-    modal.append(close);
-    modal.append(content);
-    document.body.append(modal);
-    return content;
-  }
-  //save to db
+function getDeckNameById(data, id) {
+  const item = data.find(item => item.id === id);
+  return item ? item.name : null; 
+}
 
-  //show on page
+async function getDeckById(deckId) {
+    // Validate response structure
+    try{
+        const data = await fetchData(`/api/decks/get?deckId=${deckId}`);
 
-  // const post = (formdata, action) => {
-  //   // fetch( 'http://localhost:3000/api/post.php#' + action,
-  //   fetch( 'http://localhost:3000/ajax.php',
-  //       { method : 'POST',
-  //       // headers: { 
-  //       //   'Content-Type' : 'application/json'
-  //       // },
-  //       // body : JSON.stringify(deckData)
-  //       body: formdata
-  //       })
-  //       .then(res => {return res.json();
-  //       })
-  //       .then(data => {return data}
-  //       )
-  //       .catch( error => console.error('Error:', error))         
-  // }
+        if (!data || !data.deck) {
+            throw {
+                type: 'INVALID_RESPONSE',
+                message: 'Server returned an invalid deck format'
+            };
+        }
 
-  // const show = (data) => {
-  //   console.log(data);
-  // }
+        // Check for empty deck
+        if (data.deck.length === 0) {
+            return {
+               
+                error: {
+                    type: 'EMPTY_DECK',
+                    message: 'No cards in this deck'
+                },
+            };
+        }
 
-  const  showDecks = async(decksArr) =>
-  {
-    const container = document.getElementById('decksNameList');
-    const deckList = document.createElement('ul');
-    //empty container
-    container.innerHTML = '';
-    if (decksArr)
-    {
-      Object.entries(decksArr).forEach (([deckName,cards]) => {
-        const liEl = document.createElement('li');
-        liEl.classList.add('subContainer', 'tree');
-        liEl.setAttribute('data_id', cards[0]['deckId'])
-
-        liEl.innerHTML = `
-          
-          <p class = "deckName" value="${deckName}">
-          ${deckName}
-          </p>
-          
-        `;
-
-        liEl.addEventListener('click', selectLi);
-        //   e.stopPropagation();
-          
-        //   selectLi(e.target);
-  
-        // });
-  
-  
-        deckList.append(liEl);
-  
+        return data.deck[0]
       
-      })
-      container.append(deckList);
+
+    } catch (error) {
+        console.error('Deck Loading Error:', error);
+        
+        // Handle different error types
+        let userMessage = 'Failed to load deck';
+        if (error.type === 'EMPTY_DECK') {
+            userMessage = 'This deck is empty';
+        } else if (error.type === 'API_ERROR') {
+            userMessage = 'Server error: ' + error.message;
+        }
+        
+    }
+}
+
+async function deleteDeckById(deckId) {
+    // Validate response structure
+    try{
+        const data = await fetchData(`/api/decks/delete?deckId=${deckId}`); 
 
         
-      // for (let i = 0; i < decksArr.length; i++) {
-      //   const liEl = document.createElement('li');
-      //   liEl.classList.add('subContainer', 'tree');
 
-      //   liEl.innerHTML = `
-          
-      //     <p class = "deckName" value="${decksArr[i]}">
-      //     ${decksArr[i]}
-      //     </p>
-          
-      //   `;
+        // Check for success
+        if (!data.success) {
+            throw {
+                type: 'Unsuccessfull attempt',
+                message: 'Server could not delete the Deck'
+            };
+        }
 
-      //   liEl.addEventListener('click', (e) => {
-      //     e.stopPropagation();
-          
-      //     selectLi(e.target);
-  
-  
-  
-      //   });
-  
-  
-      //   deckList.append(liEl);
-  
+        return {
+            success: true,
+            message: 'The Deck was successfully deleted.'
+        };
       
-      // }
-      // container.append(deckList);
 
-    }    
-  }
-
-  const selectLi = async (e)=> 
-  {
-    const selectLi = e.target.closest('li');
-    const parentUl = selectLi.closest('ul');
-
-    //clears the last selected li
-    const selectedEls = parentUl.querySelectorAll("li.selected");
-    (selectedEls.length > 0) ? selectedEls.forEach(selectedEl => selectedEl.classList.remove('selected')) : null;      
-    await showSelectedLi(selectLi)
-    // //selects li
-    // selectLi.classList.add('selected');
-    // //get deck name
-    // const deckName = selectLi.querySelector('.deckName').innerText;
-    // //get deck info from DB
-    // const deckInfo = await getDeckDetails(deckName);
-    // //show deck info 
-    // if (deckInfo && deckInfo.length === 1){
-    //   showDeckDetails(deckInfo[0])
-    // }else{
-    //   console.log("Error, no such Deck was found.")
-    // }
-  };
-
-  const showSelectedLi = async (liElement) => {
-    //selects li
-    liElement.classList.add('selected');
-    //get deck name
-    // const deckName = liElement.querySelector('.deckName').innerText;
-    const deckId = liElement.getAttribute('data_id')
-    //get deck info from DB
-    const deckInfo = await getDeckDetails(deckId);
-    //show deck info 
-    if (deckInfo && deckInfo.length === 1){
-      showDeckDetails(deckInfo[0])
-    }else{
-      console.log("Error, no such Deck was found.")
+    } catch (error) {
+        console.error('Deck Delete Error:', error);
+        
+        // Handle different error types
+        const userMessage = 'Failed to delete deck';
+        showSystemMessage(`Error: ${userMessage}`, 'error', false);
+        
     }
-  }
+}
 
-  const getDeckDetails = async (deckID) => {
-    const Method = 'GET';
-    const header = { 
-      'Content-Type' : 'application/json'
+async function getCategories() {
+    const data = await fetchData('/api/categories/get');
+    if (!data) {
+        throw {
+                type: 'INVALID_REQUEST',
+                message: 'User must be signed in to have access'
+            };
+    }
+    const customCategories = data.categories.custom ?? [];
+    const defaultCategories = data.categories.default ?? [];
+    categories = [
+        ...customCategories.map(c => ({ id: c.id, name: c.name })),
+        ...defaultCategories.map(d => ({ id: d.id, name: d.name }))
+    ];
+    console.log(categories)
+
+    return [customCategories, defaultCategories];
+}
+
+async function getDecks() {
+    const deckslist = await fetchData('/api/decks/get');
+    return deckslist
+}
+       
+// --- Modal Handlers ---
+
+function openDeckModal(deck = null) {
+    if (isGuest) {
+        showSystemMessage('Please log in to add/edit decks.', 'info', true);
+        return;
+    }
+    const deckModalLabel = document.getElementById('deckModalLabel');
+    const deckIdInput = document.getElementById('deckId');
+    const deckNameInput = document.getElementById('deckName');
+    const deckCategorySelect = document.getElementById('deckCategory');
+    const deckDescriptionInput = document.getElementById('deckDescription');
+
+
+    // Populate categories dropdown
+    deckCategorySelect.innerHTML = categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join('');
+    if (categories.length === 0) {
+        deckCategorySelect.innerHTML = '<option value="">No categories available. Add one first!</option>';
+        deckCategorySelect.disabled = true;
+        showSystemMessage('No categories found. Please add a category first.', 'info', false);
+    } else {
+        deckCategorySelect.disabled = false;
+    }
+
+    if (deck) {
+
+        deckModalLabel.textContent = 'Edit Deck';
+        deckIdInput.value = deck.id;
+        deckNameInput.value = deck.deckName;
+        deckDescriptionInput.value = deck.deckDescription
+        deckCategorySelect.value = deck.category_id; 
+    } else {
+        deckModalLabel.textContent = 'Add New Deck';
+        deckIdInput.value = '';
+        deckNameInput.value = '';
+        deckDescriptionInput.value = '';
+        if (categories.length > 0) deckCategorySelect.value = categories[0].id;
+    }
+    deckModal.show();
+}
+
+function openCardModal(deckId, card = null) {
+    if (isGuest) {
+        showSystemMessage('Please log in to add/edit cards.', 'info', true);
+        return;
+    }
+    const cardModalLabel = document.getElementById('cardModalLabel');
+    const cardIdInput = document.getElementById('cardId');
+    const cardDeckIdInput = document.getElementById('cardDeckId');
+    const cardFrontInput = document.getElementById('cardFront');
+    const cardBackInput = document.getElementById('cardBack');
+
+    cardDeckIdInput.value = deckId; 
+
+    if (card) {
+        cardModalLabel.textContent = 'Edit Card';
+        cardIdInput.value = card.id;
+        cardFrontInput.value = card.frontContent;
+        cardBackInput.value = card.backContent;
+    } else {
+        cardModalLabel.textContent = 'Add New Card';
+        cardIdInput.value = '';
+        cardFrontInput.value = '';
+        cardBackInput.value = '';
+    }
+    cardModal.show();
+}
+
+function openCategoryModal() {
+    if (isGuest) {
+        showSystemMessage('Please log in to manage categories.', 'info', true);
+        return;
+    }
+    // Corrected: Ensure the correct modal body element is passed
+    renderCategoriesList(document.getElementById('categoryModal').querySelector('.modal-body'));
+    categoryModal.show();
+}
+
+// --- Form Submission Handlers ---
+
+document.getElementById('deckForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const deckId = document.getElementById('deckId').value;
+    const deckName = document.getElementById('deckName').value;
+    const deckCategory = document.getElementById('deckCategory').value;
+    const deckDescription = document.getElementById('deckDescription').value;
+
+    if (!deckName || !deckCategory) {
+        showSystemMessage('Deck name and category are required.', 'error', true);
+        return;
+    }
+
+    const deckData = {
+        id: deckId || undefined, 
+        name: deckName,
+        category_id: deckCategory,
+        description: deckDescription
     };
 
-    const sanitiseddeckID = sanitizeText(deckID);
-    const action = 'getDeckData';
-    
-    const deckInfo = await fetch(`api/index.php?deckID=${sanitiseddeckID}&action=${action}`,
-      { method : Method,
-      headers: header
-      // body : JSON.stringify(deckData)
-      })
-      .then(res => {
-        switch (res.status) {
-          case 200:
-            return res.json();
-            break;
-          case 404:
-            throw new Error('Resource not found');
-            break;
-          case 400:
-            throw new Error('Bad Request');
-            break;
-          default:
-            throw new Error(`Unexpected error: ${response.status}`);
-            break;
-          }
-        })
-      // .then(data => data)
-      .catch( error => console.error('Error:', error)) 
-      return deckInfo;  
-    } 
-  
+    let url = deckId ? '/api/decks/edit.php' : '/api/decks/create.php'; 
 
-  const showDeckDetails = (info) => {
-      const viewContainer = document.getElementById('mainCenterDisplay');
-      viewContainer.innerHTML = `
-      <div class='deck-Info' id="deckInfo">
-      
-        <div class="deck-Info_Header">
-          <div class="deck-Info_Header_Left">
-          <p> Deck Name: <span class="data">${info.deckName}</span></p>
-            <p>Created <span class = "data">${info.timeCreated} </span></p>
-            <p>Last edited <span class = "data">${info.timeEdited}</span></p>
-          </div>
-          <div>
-          <p>Category : <span class = "data">${info.deckCategory}</span></p>
-
-          <p> Deck description: <span class="data">${info.deckDescription}</span></p>
-          </div> 
-          <div class="deck-Info_Header_Right">
-            <span class="material-symbols-outlined">
-              share
-            </span>
-          </div>
-        </div>
-
-        
-
-        <div class="deck-Info_Content">
-          <div class="deck-Info_Content_Number">
-          <p>Total cards : <span class = "data">${info.totalCards}</span></p>
-
-          </div>
-          <div class="deck-Info_Content_Masetery">
-          <p>Mastery : <span class = "data">${info.mastery}%</span></p>
-
-          </div>
-          <div class="deck-Info_Content_Record">
-          <p>Best time : <span class = "data">${info.record}</span></p>
-
-          </div>
-        </div>
-
-        <div class="deck-Info_Footer">
-          <div class="deck-Info_Footer_Actions " id ="deck-Info_Footer_Actions__div">
-            <button type="button" class="menu__btn addCardBtn" id= "addCardBtn_deck-Info_Footer_Actions" >Add card</button>
-            <button type="button" class="menu__btn learnBtn" id= "learnBtn_deck-Info_Footer_Actions">Learn</button>
-            <button type="button" class="menu__btn testBtn" id= "testBtn_deck-Info_Footer_Actions">Test</button>
-            <button type="button" class="cancelBtn menu__btn deleteBtn" id= "deleteBtn_deck-Info_Footer_Actions">Delete</button>
-            <button type="button" class="menu__btn settingBtn" id= "settingBtn_deck-Info_Footer_Actions">Setting</button>
-          </div>
-
-        </div>
-      </div> 
-     
-      `
-      buttons = document.getElementById("deck-Info_Footer_Actions__div").children;
-      addCardBtn = buttons[0];
-      learnBtn = buttons[1];
-      testBtn = buttons[2];
-      deleteBtn = buttons[3];
-      settingBtn = buttons[4];
-
-      addCardBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        loadEmptyCard(info.deckName);
-
-      })
-
-      learnBtn.addEventListener('click', async(e)=>{
-        e.preventDefault();
-        let cards = await getAllCards(info.deckName);
-        if (cards) {
-          loadDeck(cards);
+    try {
+        const result = await fetchData(url, 'POST', deckData);
+        if (result.success) {
+            showSystemMessage(result.message, 'info');
+            deckModal.hide();
+            await renderDecksList(); 
+            if (!deckId) { 
+                const newDeck = result.deck; 
+                if (newDeck) {
+                    currentDeckId = newDeck.id;
+                    document.querySelector(`.deck-item[data-deck-id="${currentDeckId}"]`)?.classList.add('active');
+                    renderCardsList(currentDeckId); 
+                }
+            }
         } else {
-
+            showSystemMessage(result.message, 'error', false);
         }
-        console.log(cards)
-
-      })
-
-      testBtn.addEventListener('click',async (e)=>{
-        e.preventDefault();
-        let cards = await getAllCards(info.deckName);
-        loadDeck(cards);
-
-      })
-
-      settingBtn.addEventListener('click', ()=>{
-        console.log(cards);
-      })
-
-
-  }
-
-
-  const loadEmptyCard = (deckName)=>{
-    const viewContainer = document.getElementById('mainCenterDisplay');
-      viewContainer.innerHTML =`
-        <form method="post" id="emptyCardForm" class="emptyCardForm">
-
-          <div class="emptyCardHeader">
-            <button type="button" class= " menu__btn cardSaveBtn" id = "cardsSaveBtn"> Done </button>
-            <span class="emptyCardHeader_DeckName">${deckName}</span>
-            <button type="submit" class= "menu__btn addNewCardBtn" id= "addNewCardBtn"> + </button>
-          </div>
-
-          <div class="emptyCardFront">
-            <textarea name="cardFrontText" id="emptyCardFrontText" cols="50" rows="10" placeholder=" Front of the card"></textarea>
-          </div>
-
-          <div class="emptyCardBack">
-          <textarea name="cardBackText" id="emptyCardBackText" cols="50" rows="10" placeholder=" Back of the card"></textarea>
-          </div>
-          
-        </form>
-      `
-      const newCardBtn =  document.getElementById('addNewCardBtn');
-      const addCardDoneBtn =  document.getElementById('cardsSaveBtn');
-      
-
-      newCardBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const cardData = new FormData(document.getElementById('emptyCardForm'));
-
-
-        addCardToDeck(deckName, cardData);
-        loadEmptyCard(deckName);
-      })
-
-      addCardDoneBtn.addEventListener ( 'click', (e)=>{
-        e.preventDefault();
-        const cardData = new FormData(document.getElementById('emptyCardForm'));
-        addCardToDeck(deckName, cardData);
-        selectDeck(deckName);
-      })
-  }
-
-  const selectDeck= (deckName)=>{
-    const addedDeckLiEl = document.querySelector('div.main-Left_Cards ul').children;
-    for (const liEl of addedDeckLiEl) {
-      
-
-      if (liEl.lastElementChild.innerText == deckName) {
-        showSelectedLi(liEl);
-      }  
+    } catch (error) {
+        // Error handled by fetchData
     }
-  }
+});
 
-  const addCardToDeck = async(deckName, cardData)=>{
-    
-    //check if cardData has any inputs
-    cardData.forEach((value, key) => {
-      if(!value){
-        return
-      }
-    })
-      
-    //saves carddata if input exists
-    const Method = 'POST';
-    // let header = { 
-    //   'Content-Type' : 'multipart/form-data'
-    // };
-    const value = deckName;
-    const action = 'addCard';
-    const deckInfo = await fetch( 'http://localhost:3000/api/index.php?' + "deckName=" + value + "&action="+action,
-      { method : Method,
-      // headers: header,
-      body : cardData 
-      })
-      .then(res => res.text()
-      )
-      .then(data => {
-        console.log(data);
-        return data
-        // switch (data) {
-        //   case 'The deck was Successfully added.':
-        //     refreshDeckList();
-        //     break;
-        
-        //   default:
-        //     break;
-        // }
-        // return data
-      }
-      )
-      .catch( error => console.error('Error:', error)) 
-      return deckInfo;
-  }
+document.getElementById('cardForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const cardId = document.getElementById('cardId').value;
+    const cardDeckId = document.getElementById('cardDeckId').value;
+    const cardFront = document.getElementById('cardFront').value;
+    const cardBack = document.getElementById('cardBack').value;
 
-  const getAllCards = async(deckName)=>{
-    if (deckName)
-    {
-      var requestOptions = {
-        method: 'GET',
-        headers: { 
-          'Content-Type' : 'application/json'
-        }
-      };
-      var url = 'http://localhost:3000/api/index.php?action=getCards&deckName=' + deckName;
-      const cards = await runFetch(url, requestOptions);
-    //   const result = fetch(url, requestOptions)
-    // .then(res=>res.json())
-    // .then(data=>{return data})
-    // .catch(error => console.log('error', error));
-        return cards;
+    if (!cardFront || !cardBack) {
+        showSystemMessage('Card front and back content are required.', 'error', true);
+        return;
     }
-  }
 
-  const runFetch = (url, requestOptions)=>{
-    const result = fetch(url, requestOptions)
-    // .then(res=>res.json())
-    .then(res => {
-      if (res.ok) {
-        return res.json();
-      }
+    const cardData = {
+        id: cardId || undefined,
+        deck_id: cardDeckId,
+        frontContent: cardFront,
+        backContent: cardBack
+    };
 
-      throw new Error (res.statusText)
-      
-    })
-    .then(data=>{return data})
-    .catch(error => tinderModal(error));
-    return result;
-  }
+    let url = cardId ? '/api/cards/edit.php' : '/api/cards/create.php'; 
 
-  const runtest = (url, requestOptions)=>{
-    const result = fetch(url, requestOptions)
-    .then(res=>res.text())
-    .then(data=>{return data})
-    .catch(error => console.log('error', error));
-    return result;
-  }
-   
-  const tinderModal = (text)=>{
-    // instanciate new modal
-    var modal = new tingle.modal({
-      footer: true,
-      stickyFooter: false,
-      closeMethods: ['overlay', 'button', 'escape'],
-      closeLabel: "Close",
-      cssClass: ['custom-class-1', 'custom-class-2'],
-      onOpen: function() {
-          console.log('modal open');
-      },
-      onClose: function() {
-          console.log('modal closed');
-      },
-      beforeClose: function() {
-          // here's goes some logic
-          // e.g. save content before closing the modal
-          return true; // close the modal
-          return false; // nothing happens
-  }
-    });
-    // set content
-    modal.setContent(`<p>${text}<p>`);
-    console.log(modal);
-    
-      // add a button
-    modal.addFooterBtn('Button label', 'tingle-btn tingle-btn--primary', function() {
-      // here goes some logic
-      modal.close();
-    });
-
-    // add another button
-    modal.addFooterBtn('Dangerous action !', 'tingle-btn tingle-btn--danger', function() {
-      // here goes some logic
-      modal.close();
-    });
-
-    // open modal
-    modal.open();
-
-    // close modal
-    // modal.close();
-  }
-  
-  const loadDeck = (cards, i = 0)=>{
-    if(0<=i && i < cards.length)
-    {
-
-      let container = document.getElementById('mainCenterDisplay');
-      container.innerHTML = `
-      <div class="cardElContainer" id="cardElContainer">  
-        <div class="cardEl" id="cardEl">
-          <div class="cardEl_Header" id="cardEl_Header">
-            <button type="button" class="menu__btn" id="cardEl_Header_EditBtn">edit</button>
-            <button type="button" class="menu__btn" id="cardEl_Header_DelBtn">Delete</button>
-            <button type="button" class="menu__btn" id="cardEl_Header_FavBtn">fav</button>
-          </div>
-          <div class="cardEl_Frontside" id="cardEl_Content" number="${i}">
-            ${cards[i]['frontContent']}
-          </div>
-        </div>
-        <div class="cardElControls" id="cardElControls">
-          <div class="cardElControls_Left" id = "cardElControls_Left">
-            <button type="button" class="menu__btn" id="cardEl_Control_SettingBtn">setting</button>
-          </div>
-          <div class="cardElControls_Center" id = "cardElControls_Center">
-            <button type="button" class="menu__btn" id="cardEl_Control_BeforeBtn">
-              <span class="material-symbols-outlined">
-                navigate_before
-              </span>
-            </button>
-            <span id="cardEl_Control_CardNr">${i+1}/${cards.length}</span>
-            <button type="button" class="menu__btn" id="cardEl_Control_NextBtn">
-              <span class="material-symbols-outlined">
-                navigate_next
-              </span>
-            </button>
-          </div>
-          <div class="cardElControls_Right" id = "cardElControls_Right">
-            <button type="button" class="menu__btn" id="cardEl_Control_ShuffleBtn">shuffle</button>
-            <button type="button" class="menu__btn" id="cardEl_Control_FullScrBtn">fullscreen</button>
-          </div>
-        </div>
-      </div>
-      `
-      const cardContent = document.getElementById('cardEl_Content');
-      const nextBtn = document.getElementById('cardEl_Control_NextBtn');
-      const beforeBtn = document.getElementById('cardEl_Control_BeforeBtn');
-      const favBtn = document.getElementById('cardEl_Header_FavBtn');
-      const editBtn = document.getElementById('cardEl_Header_EditBtn');
-      const deleteBtn = document.getElementById('cardEl_Header_DelBtn');
-      const settingBtn = document.getElementById('cardEl_Control_SettingBtn');
-      const shuffleBtn = document.getElementById('cardEl_Control_ShuffleBtn');
-      const fullScrBtn = document.getElementById('cardEl_Control_FullScrBtn');
-
-      editBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        cardNr = Number(cardContent.getAttribute('number'));
-        editCard(cards, cardNr);
-      })
-
-      shuffleBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const shuffledDeck = shuffleArray(cards);
-        loadDeck(shuffledDeck);
-      })
-
-      favBtn.addEventListener('click', async function(e){
-        e.preventDefault();
-        const newFav = (cards[i]['fav']) ? 0 : 1;
-        const result = await updateCard(cards[i], 'fav', newFav);
-        console.log(result);
-        // loadDeck(shuffledDeck);
-      })
-
-      deleteBtn.addEventListener('click',async (e)=>{
-        e.preventDefault();
-        cardNr = Number(cardContent.getAttribute('number'));
-        if (confirm('do you want to delete this card?')){
-          const deckName = document.querySelector('#decksNameList ul li.selected p.deckName').getAttribute('value');
-          const cardId = cards[cardNr]['cardId'];
-          const result = await deleteCard(cards, cardId, deckName);
-
-          if (result)
-          {
-
-            let newCards = await getAllCards(deckName);
-            loadDeck(newCards, cardNr)
-
-          }
-        }
-      })
-
-      nextBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        i++;
-        if (0<=i && i<cards.length)
-        {
-          loadDeck(cards, i)
-        } else if (i = cards.length) {
-          i = cards.length - 1;
-        }
-      })
-
-      beforeBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        i--;
-        if (0<=i && i<cards.length)
-        {
-          loadDeck(cards, i)
-        }else if (i < 0) {
-          i = 0;
-        }
-      })
-
-      cardContent.addEventListener('click', (e)=>{
-        if(e.target.tagName !== 'button') 
-        {
-          if (e.target.classList.contains('cardEl_Frontside'))
-          {
-            loadBackside(cards, i);
-          } else {
-            loadFrontside(cards[i]);
-          }
-          
-          
-          
-        }
-      })
-
-      settingBtn.addEventListener('click', async()=>{
-        const deckName = document.querySelector('#decksNameList ul li.selected p.deckName').getAttribute('value');
-        let result = await updateDeck(deckName, cards);
-        console.log(result);
-      })
-
-
-
-    }else if(i >= cards.length)
-    {
-      i = cards.length -1;
-      loadDeck(cards, i);
-    }
-  }
-
-  const loadBackside = (cards, i)=>{
-    const cardFront = document.getElementById('cardEl_Content');
-    cardFront.classList.toggle('cardEl_Frontside');
-    cardFront.classList.toggle('cardEl_Backside');
-    cardFront.innerHTML =`
-    <div class ="backsideContent" id="backsideContent">
-    ${cards[i]['backContent']}
-    </div>
-    <div class="diffSelector" id="diffSelector">
-      <span>How difficult waas it to remember?</span>
-      <div class="diffSelector_Div" id="diffSelector_Div">
-        
-        <div class="diff_Div" id="diff_div1">
-          <button class="menu__btn" id="diff_Btn1" value ='1'>1</button>
-        </div>
-        <div class="diff_Div" id="diff_div2">
-          <button class="menu__btn" id="diff_Btn2" value ='2'>2</button>
-        </div>
-        <div class="diff_Div" id="diff_div3">
-          <button class="menu__btn" id="diff_Btn3" value ='3'>3</button>
-        </div>
-        <div class="diff_Div" id="diff_div4">
-          <button class="menu__btn" id="diff_Btn4" value ='4'>4</button>
-        </div>
-        <div class="diff_Div" id="diff_div5">
-          <button class="menu__btn" id="diff_Btn5" value ='5'>5</button>
-        </div>
-      </div>
-    </div>
-  
-    `
-    const diffBtnsContainer = document.getElementById('diffSelector_Div');
-    const diffBtns = diffBtnsContainer.querySelectorAll('button.menu__btn');
-    diffBtns.forEach(element => {
-      if (!diffBtns.hasOwnProperty(element)){
-      element.addEventListener('click', async function(e){
-        const diffLvl = Number(this.value);
-        cards[i]['difficulty'] = diffLvl;
-        const diffUpdateResult = await updateCard(cards[i], 'difficulty', cards[i]['difficulty']);
-        console.log(diffUpdateResult);
-      })
-      }
-      });
-      // for (var key in diffBtns){
-      //   console.log(diffBtns);
-      //   if (!diffBtns.hasOwnProperty(key)){
-
-        // key.addEventListener('click', (e)=>{
-        //   let diffLvl = Number(e.target.value);
-        //   cards[i]['difficulty'] = diffLvl;
-          
-        // })
-      // }
-
-    // }
-    console.log(cards)
-  }
-
-  
-  const loadFrontside = (cardData)=>{
-    const cardFront = document.getElementById('cardEl_Content');
-    cardFront.classList.toggle('cardEl_Frontside');
-    cardFront.classList.toggle('cardEl_Backside');
-    cardFront.innerHTML =`
-    ${cardData['frontContent']}
-    `
-
-  }  
-
-  const updateDeck = async(deckName, cards)=>{
-    if (deckName)
-    {
-      let requestOptions = {
-        method: 'POST',
-        body: JSON.stringify(cards),
-        // body:cards,
-        headers: { 
-          'Content-Type' : 'application/json'
-        }
-      };
-      var url = 'http://localhost:3000/api/index.php?action=updateCards&deckName=' + deckName;
-      const result = await runFetch(url, requestOptions);
-    //   const result = fetch(url, requestOptions)
-    // .then(res=>res.json())
-    // .then(data=>{return data})
-    // .catch(error => console.log('error', error));
-      return result;
-    }
-  }
-
-  const updateCard = async(card, variable = '' , value = '')=>{
-    if (card)
-    {
-      let requestOptions = {
-        method: 'POST',
-        body: JSON.stringify(data = 
-          {
-            card : card,
-            variable : variable,
-            value : value
-          }),
-        // body:cards,
-        headers: { 
-          'Content-Type' : 'application/json'
-        }
-      };
-      var url = 'http://localhost:3000/api/index.php?action=updateCard';
-      const result = await runFetch(url, requestOptions);
-    //   const result = fetch(url, requestOptions)
-    // .then(res=>res.json())
-    // .then(data=>{return data})
-    // .catch(error => console.log('error', error));
-      
-      return result;
-    }
-  }
-
-  const editCard = (cards, cardNr)=>{
-    const cardCont = document.getElementById('cardEl');
-    cardCont.innerHTML =`
-      <form method="post" id="emptyCardForm" class="emptyCardForm">
-
-        <div class="emptyCardHeader">
-          <button type="button" class= "Btn cancelEditBtn" id = "cancelEditBtn"> cancel </button>
-          <span class="emptyCardHeader_DeckName">${cards[cardNr]['deckName']}</span>
-          <button type="submit" class= "Btn saveCardBtn" id= "saveCardBtn"> save </button>
-        </div>
-
-        <div class="emptyCardFront" align="center">
-          <textarea name="cardFrontText" id="emptyCardFrontText" cols="30" rows="10" placeholder="Front of the card">
-            ${cards[cardNr]['frontContent']}
-          </textarea>
-        </div>
-
-        <div class="emptyCardBack">
-        <textarea name="cardBackText" id="emptyCardBackText" cols="30" rows="10" placeholder="Back of the card">
-          ${cards[cardNr]['backContent']}
-        </textarea>
-        </div>
-        
-      </form>
-    `
-    const saveCardBtn =  document.getElementById('saveCardBtn');
-    const cancelEditBtn =  document.getElementById('cancelEditBtn');
-    
-
-    saveCardBtn.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const cardData = new FormData(document.getElementById('emptyCardForm'));
-      cards[cardNr]['frontContent'] =  escapeHtml(cardData.get('cardFrontText'));
-      cards[cardNr]['backContent'] = escapeHtml(cardData.get('cardBackText'));
-      loadDeck(cards, cardNr);
-      
-      
-    })
-
-    cancelEditBtn.addEventListener ( 'click', (e)=>{
-      e.preventDefault();
-      // const cardData = new FormData(document.getElementById('emptyCardForm'));
-      // addCardToDeck(deckName, cardData);
-      // selectDeck(deckName);
-      loadDeck(cards, cardNr);
-
-    })
-    
-  }
-
-  const deleteCard = async (cards, cardId, deckName)=>{
-    const url = 'http://localhost:3000/api/index.php?action=deleteCard&deckName=' + deckName + "&cardId=" + cardId;
-    const requestOptions = {
-      method:'post',
-      body: JSON.stringify(cards),
-      headers:{
-        'Content-Type' : 'application/json'      }
-    }
-    let response = await runFetch(url,requestOptions);
-    console.log(response);
-    if (response = 'delete successfull')
-    {
-      return true;
-    }else
-    {
-      return false;
-    }
-       
-  }
-
-  const searchCards = async (searchTerm)=>{
-    const url = 'http://localhost:3000/api/index.php?action=searchCards&searchTerm=' + searchTerm;
-    const requestOptions = {
-      method:'get',
-      headers:{
-        'Content-Type' : 'application/json'      }
-    }
-    
-    const results = await runFetch (url, requestOptions);
-    return results;
-  }
-
-  const showCardSearch = (searchResult, searchTerm)=>{
-
-    if ( !isEmptyObject(searchResult))
-    {
-      const displayCont = document.getElementById('mainCenterDisplay');
-      displayCont.style.flexDirection = "column";
-      const displayFrontResultsCont = document.createElement('div');
-      displayFrontResultsCont.classList.add("cards_Cont");
-      const displayBackResultsCont = document.createElement('div');
-      displayBackResultsCont.classList.add("cards_Cont");
-
-      displayCont.innerHTML= `
-        <div class="card_header">
-          The search results for "${searchTerm}" are :
-        </div>
-      `
-      
-      if (Object.keys(searchResult['frontContent']).length == 0)
-      {
-        displayFrontResultsCont.innerHTML = `
-          <span class="cards_Cont">
-            No match found in front side of decks
-          </span>
-        `
-      }else{
-        displayFrontResultsCont.innerHTML=`
-        Found on front side : 
-        `
-        for (key in searchResult['frontContent'])
-        {
-          if (!isEmptyObject(searchResult['frontContent'][key]))
-          {
-            var displayFrontSpan = document.createElement('div');
-            displayFrontSpan.classList.add("card_search");
-            displayFrontSpan.innerHTML = `
-                <span class = "cards_Cont">
-                  Deck: "${key}"
-                </span>
-            `
-            for (card in searchResult['frontContent'][key])
-            {
-              
-              var searchCard = displaycard (searchResult['frontContent'][key][card] , 'frontContent');
-              displayFrontSpan.append(searchCard);
-
-              searchCard.addEventListener('click', function(e){
-                // const card1 = searchResult['frontContent'][key][card];
-                // console.log(searchResult['frontContent'][key][card]);
-                enlarge (searchResult['frontContent'][key][card]);
-              });
+    try {
+        const result = await fetchData(url, 'POST', cardData);
+        if (result.success) {
+            showSystemMessage(result.message, 'info');
+            cardModal.hide();
+            if (currentDeckId) {
+                await renderCardsList(currentDeckId); 
             }
-          }
-          displayFrontResultsCont.append(displayFrontSpan);
-
+        } else {
+            showSystemMessage(result.message, 'error', false);
         }
-      }
-      
-      if (Object.keys(searchResult['backContent']).length == 0)
-      {
-        displayBackResultsCont.innerHTML = `
-          <span>
-            No match found in back side of decks
-          </span>
-        `
-      }else{
-        displayBackResultsCont.innerHTML=`
-        Found on back side : 
-        `
-        for (key in searchResult['backContent'])
-        {
-          {
-            // if (searchResult['frontContent'].hasOwnProperty(key))
-            if (!isEmptyObject(searchResult['backContent'][key]))
-            {
-              console.log(searchResult['backContent'][key]);
-              var displayBackSpan = document.createElement('div');
-              displayBackSpan.classList.add("card_search");
+    } catch (error) {
+        // Error handled by fetchData
+    }
+});
 
-              displayBackSpan.innerHTML = `
-                  <span class = "cards_Cont">
-                    ${key}
-                  </span>
-              `
-              for (card in searchResult['backContent'][key])
-              {
-                const searchCard = displaycard (searchResult['backContent'][key][card] , 'backContent');
-                displayBackSpan.append(searchCard);
-                
+document.getElementById('addCategoryForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const newCategoryNameInput = document.getElementById('newCategoryName');
+    const newCategoryName = newCategoryNameInput.value.trim();
 
-              }
+    if (!newCategoryName) {
+        showSystemMessage('Category name cannot be empty.', 'error', true);
+        return;
+    }
+
+    try {
+        const result = await fetchData('/api/categories/create.php', 'POST', { name: newCategoryName }); 
+        if (result.success) {
+            showSystemMessage(result.message, 'info');
+            newCategoryNameInput.value = '';
+            await renderCategoriesList(document.getElementById('categoryModal').querySelector('.modal-body')); 
+            // Also re-render deck modal categories if it's open
+            if (document.getElementById('deckModal').classList.contains('show')) {
+                const deckCategorySelect = document.getElementById('deckCategory');
+                deckCategorySelect.innerHTML = categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join('');
+                deckCategorySelect.disabled = false;
             }
-            displayBackResultsCont.append(displayBackSpan);
-          }
+        } else {
+            showSystemMessage(result.message, 'error', false);
         }
-      }
-      displayCont.append(displayFrontResultsCont);
-      displayCont.append(displayBackResultsCont);
-
+    } catch (error) {
+        // Error handled by fetchData
     }
-  }
+});
 
-  const escapeHtml = (unsafe)=> {
-    return unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
-  }
+// --- Study Mode Functions ---
 
-  const isEmptyObject = (obj)=> {
-    return JSON.stringify(obj) === '{}'
-  }
+function renderStudyMode() {
+    const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+    if (!mainCenterDisplay) return; 
 
-  const displaycard = (card, side)=> {
-    if (!isEmptyObject(card))
-    {
-      var cardCont = document.createElement('div');
-      cardCont.classList.add("card_rearch_body");
-      cardCont.setAttribute('id', card['cardId'] );
-      cardCont.innerHTML =`
-          ${card[side]}
-      `
+    mainCenterDisplay.innerHTML = '';
+
+    if (studyMode.cards.length === 0) {
+        mainCenterDisplay.innerHTML = '<p class="text-white-50 text-center mt-5">No cards to study in this deck.</p>';
+        return;
     }
-    return cardCont;
-  }
-  
-  const enlarge = (card) => {
-    let modal = makeModal();
-    // modal.innerHTML = `
-    //   <div class = "login__Cont">
-    //     <div class="login_header">
-    //       <h6>Please fill out Deck information:</h6>
-    //     </div>
-    //     <form class="login__form" id = "add-Deck__Form" method = "post">
 
-    //       <label class="label" for="deckName__input">Deckname: </label>
-    //       <input class="deckName__input" required type="text" name="deckName__input" id="deckName__input" placeholder="Name of new deck ...">
-    //       <div class="invalid-input__err">
-    //         <?php echo $deckNameErr; ?>
-    //       </div>
+    const currentCard = studyMode.cards[studyMode.currentIndex];
+    const totalCards = studyMode.cards.length;
+    const currentCardNumber = studyMode.currentIndex + 1;
 
-    //       <div class="category__Sec">
-                 
-    //         <div>
-    //           <label class="label" for="category__input">Category: </label>
-    //           <select name="category__input" id="category__input" required >
-    //             <optgroup label="Language">
-    //               <optgroup label="words">
-    //                 <option value="deutsch">Deutsch</option>
-    //               </optgroup>
-    //               <optgroup label="expressions">
-    //                 <option value="deutsch">deutsch</option>
-    //               </optgroup>
-    //             </optgroup>
-    //             <optgroup label="General">
-    //               <option value="math">Math</option>
-    //             </optgroup>
-    //           </select>
-    //           <div class="invalid-input__err">
-    //             <?php echo $categoryErr; ?>
-    //           </div>
-    //         </div>
+    // Determine if Previous/Next buttons should be disabled
+    const isPrevDisabled = studyMode.currentIndex === 0;
+    const isNextDisabled = studyMode.currentIndex === totalCards - 1;
 
-    //         <div>
-    //           <button type="button" class="icon__btn" id="add_Category__Btn">
-    //             <span class="material-symbols-outlined">
-    //               add
-    //             </span>
-    //           </button>
-    //         </div>
 
-    //       </div>
-
-    //       <label class="label" for="description__input">Description</label>
-    //       <textarea name="description__input" id="description__input" cols="30" rows="10" placeholder="Enter a brief explaination"></textarea>  
-    //       <div class="invalid-input__err">
-    //         <?php echo $descriptionErr; ?>
-    //       </div> 
-
-    //       <div class="formBtns__div">
-    //         <button class= "btn" type="submit" id= "submitDeckBtn">Register</button>
-    //         <button class= "btn" type="reset">Cancel</button>
-    //       </div>
-    //     </form>
-    //   </div>
-    // `
-    loadCard(card , modal);
-  }
-
-  const loadCard = (card , modal) => {
-    modal.innerHTML = `
-    <div class="cardElContainer" id="cardElContainer">  
-        <div class="cardEl" id="cardEl">
-          
-          <div class="cardEl_Frontside" id="cardEl_Content" >
-            ${card['frontContent']}
-          </div>
+    const studyUI = document.createElement('div');
+    studyUI.className = 'study-container d-flex flex-column align-items-center justify-content-between flex-grow-1';
+    studyUI.innerHTML = `
+        <!-- Card Counter -->
+        <div class="card-counter text-white-50 mb-3">
+            Card ${currentCardNumber} of ${totalCards}
         </div>
-        
-      </div>
-      `
-      const cardContent = document.getElementById('cardEl_Content');
-      // const nextBtn = document.getElementById('cardEl_Control_NextBtn');
-      // const beforeBtn = document.getElementById('cardEl_Control_BeforeBtn');
-      const favBtn = document.getElementById('cardEl_Control_FavBtn');
-      const editBtn = document.getElementById('cardEl_Header_EditBtn');
-      const deleteBtn = document.getElementById('cardEl_Header_DelBtn');
-      // const settingBtn = document.getElementById('cardEl_Control_SettingBtn');
-      // const shuffleBtn = document.getElementById('cardEl_Control_ShuffleBtn');
-      // const fullScrBtn = document.getElementById('cardEl_Control_FullScrBtn');
 
-      editBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        let cardNr = Number(cardContent.getAttribute('number'));
-        editCard(cards, cardNr);
-      })
+        <!-- Navigation Buttons -->
+        <div class="d-flex justify-content-between w-100 mb-3 px-md-5">
+            <button type="button" class="btn btn-outline-info study-nav-btn" id="prevCardBtn" ${isPrevDisabled ? 'disabled' : ''}>
+                <span class="material-symbols-outlined">arrow_back</span> Previous
+            </button>
+            <button type="button" class="btn btn-outline-info study-nav-btn" id="nextCardBtn" ${isNextDisabled ? 'disabled' : ''}>
+                Next <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+        </div>
 
-      deleteBtn.addEventListener('click',async (e)=>{
-        e.preventDefault();
-        cardNr = Number(cardContent.getAttribute('number'));
-        if (confirm('do you want to delete this card?')){
-          const deckName = document.querySelector('#decksNameList ul li.selected p.deckName').getAttribute('value');
-          const cardId = cards[cardNr]['cardId'];
-          const result = await deleteCard(cards, cardId, deckName);
+        <!-- Study Card -->
+        <div class="study-card shadow-lg p-4 mb-4 flex-grow-1 d-flex flex-column justify-content-center align-items-center" style="width: 100%; max-width: 600px;">
+            <div class="study-card-inner">
+                <div class="study-card-front">${escapeHtml(currentCard.frontContent)}</div>
+                <div class="study-card-back">
+                    ${escapeHtml(currentCard.backContent)}
+                    <div class="card-actions-overlay">
+                        <button type="button" class="btn btn-sm btn-outline-secondary edit-card-btn" data-card-id="${currentCard.id}" data-deck-id="${studyMode.deckId}" title="Edit Card">
+                            <span class="material-symbols-outlined">edit</span> Edit
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-card-btn" data-card-id="${currentCard.id}" data-deck-id="${studyMode.deckId}" title="Delete Card">
+                            <span class="material-symbols-outlined">delete</span> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-          if (result)
-          {
+        <!-- Show Answer Button (Initially visible) -->
+        <button type="button" class="btn btn-primary mb-3" id="showAnswerBtn">Show Answer</button>
 
-            let newCards = await getAllCards(deckName);
-            loadDeck(newCards, cardNr)
+        <!-- Rating System (Hidden initially, shown after "Show Answer") -->
+        <div class="rating-controls d-flex justify-content-center mb-3 d-none" id="ratingControls">
+            <span class="text-white-50 me-2">How difficult was this card?</span>
+            <button type="button" class="btn btn-outline-warning rating-btn me-1" data-rating="1"><span class="material-symbols-outlined">star</span></button>
+            <button type="button" class="btn btn-outline-warning rating-btn me-1" data-rating="2"><span class="material-symbols-outlined">star</span></button>
+            <button type="button" class="btn btn-outline-warning rating-btn me-1" data-rating="3"><span class="material-symbols-outlined">star</span></button>
+            <button type="button" class="btn btn-outline-warning rating-btn me-1" data-rating="4"><span class="material-symbols-outlined">star</span></button>
+            <button type="button" class="btn btn-outline-warning rating-btn" data-rating="5"><span class="material-symbols-outlined">star</span></button>
+        </div>
 
-          }
+        <!-- Exit Study Button -->
+        <button type="button" class="btn btn-outline-secondary mt-3" id="exitStudyBtn">Exit Study</button>
+    `;
+    mainCenterDisplay.appendChild(studyUI);
+
+    // Event listener for card flip (click anywhere on the card)
+    const studyCardElement = studyUI.querySelector('.study-card');
+    const studyCardInnerElement = studyUI.querySelector('.study-card-inner');
+    const showAnswerBtn = studyUI.querySelector('#showAnswerBtn');
+    const ratingControls = studyUI.querySelector('#ratingControls');
+
+    // Initial state: back is hidden, rating controls are hidden
+    studyCardInnerElement.classList.remove('flipped'); 
+    showAnswerBtn.classList.remove('d-none');
+    ratingControls.classList.add('d-none');
+
+    // Click on card to flip
+    studyCardElement.addEventListener('click', function() {
+        studyCardInnerElement.classList.toggle('flipped');
+        // If flipped to back, show rating controls and hide show answer button
+        if (studyCardInnerElement.classList.contains('flipped')) {
+            showAnswerBtn.classList.add('d-none');
+            ratingControls.classList.remove('d-none');
+        } else {
+            // If flipped back to front, hide rating controls and show show answer button
+            showAnswerBtn.classList.remove('d-none');
+            ratingControls.classList.add('d-none');
         }
-      })
+    });
 
-     
+    // Click on "Show Answer" button to flip
+    showAnswerBtn.addEventListener('click', function() {
+        studyCardInnerElement.classList.add('flipped');
+        showAnswerBtn.classList.add('d-none');
+        ratingControls.classList.remove('d-none');
+    });
 
-      cardContent.addEventListener('click', (e)=>{
-        if(e.target.tagName !== 'button') 
-        {
-          if (e.target.classList.contains('cardEl_Frontside'))
-          {
-            loadBackside(cards, i);
-          } else {
-            loadFrontside(cards[i]);
-          }
-          
-          
-          
+
+    // Event listeners for rating buttons (delegated to rating-controls container)
+    ratingControls.addEventListener('click', async (event) => {
+        const ratingBtn = event.target.closest('.rating-btn');
+        if (ratingBtn) {
+            const rating = parseInt(ratingBtn.dataset.rating, 10);
+            await scoreCard(rating);
         }
-      })
+    });
 
-      settingBtn.addEventListener('click', async()=>{
-        const deckName = document.querySelector('#decksNameList ul li.selected p.deckName').getAttribute('value');
-        let result = await updateDeck(deckName, cards);
-        console.log(result);
-      })
+    // Event listeners for navigation buttons
+    studyUI.querySelector('#prevCardBtn').addEventListener('click', () => {
+        if (studyMode.currentIndex > 0) {
+            studyMode.currentIndex--;
+            renderStudyMode(); // Re-render for previous card
+        }
+    });
 
+    // Event listeners for Edit/Delete buttons within study mode (delegated)
+    studyUI.addEventListener('click', async (event) => {
+        if (event.target.closest('.edit-card-btn')) {
+            const btn = event.target.closest('.edit-card-btn');
+            const cardId = btn.dataset.cardId;
+            const deckId = btn.dataset.deckId;
+            const cardToEdit = studyMode.cards.find(c => c.id == cardId); 
+            if (cardToEdit) {
+                openCardModal(deckId, cardToEdit);
+            }
+        }
 
+        if (event.target.closest('.delete-card-btn')) {
+            const btn = event.target.closest('.delete-card-btn');
+            const cardId = btn.dataset.cardId;
+            const deckId = btn.dataset.deckId;
+            if (confirm('Are you sure you want to delete this card?')) {
+                try {
+                    const result = await fetchData('/api/cards/delete', 'POST', { id: cardId , deck_id: deckId});
+                    if (result.success) {
+                        showSystemMessage(result.message, 'info');
+                        // Remove the card from studyMode.cards
+                        studyMode.cards = studyMode.cards.filter(c => c.id != cardId);
 
-   
-  
-  }
-  function toggle(e){
-    // let target = e.target.getAttribute('toggle-target');
-   const dropdownBtn = e.target.closest('button')
-   const targetId = dropdownBtn.getAttribute('toggle-target')
-   
-   const element = document.getElementById(targetId);
- 
-   // check if the clicked button is already open
-   let drop;
-   element.classList.contains('show') ? drop = false : drop = true
-   closeTabs(e);
-   drop ? element.classList.toggle('show') : null;
-   
- 
-   if (targetId === 'searchDropdown') {
-     const input = document.getElementById('deckSearch')
-     input.focus()
-   } 
- 
- }
- 
- function closeTabs (e){
-   const parentUl = e.target.closest('nav');
-   const openTabs = [] && parentUl.querySelectorAll('.show');
-   (openTabs.length > 0) ? openTabs.forEach(tab => tab.classList.toggle('show')) : null;
- }
- 
- function shuffleArray(array) { 
-   for (let i = array.length - 1; i > 0; i--) { 
-     const j = Math.floor(Math.random() * (i + 1)); 
-     [array[i], array[j]] = [array[j], array[i]]; 
-   } 
-   return array; 
- } 
+                        if (studyMode.cards.length > 0) {
+                            // Adjust index if current card was deleted and it was the last one
+                            if (studyMode.currentIndex >= studyMode.cards.length) {
+                                studyMode.currentIndex = studyMode.cards.length - 1;
+                            }
+                            renderStudyMode();
+                        } else {
+                            // If no cards left, exit study mode
+                            showSystemMessage('All cards deleted from this deck. Exiting study mode.', 'info', false);
+                            studyMode.active = false;
+                            currentDeckId = null;
+                            await renderDecksList(); 
+                            if (document.getElementById('mainCenterDisplay')) {
+                                document.getElementById('mainCenterDisplay').innerHTML = `
+                                    <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                                        <h2 class="text-info">Welcome to Flashcards V1.0!</h2>
+                                        <p class="lead">Select a deck from the left to view cards or start studying.</p>
+                                        <p>Use the navigation bar to add new decks or categories.</p>
+                                    </div>
+                                `;
+                            }
+                        }
+                    } else {
+                        showSystemMessage(result.message, 'error', false);
+                    }
+                } catch (error) {
+                    // Handled by fetchData
+                }
+            }
+        }
+    });
 
- function sanitizeText(input) {
-  return input.replace(/[^a-zA-Z0-9 ]/g, "").trim(); 
+    studyUI.querySelector('#nextCardBtn').addEventListener('click', () => {
+        if (studyMode.currentIndex < studyMode.cards.length - 1) {
+            studyMode.currentIndex++;
+            renderStudyMode(); 
+        }
+    });
 }
- assignToggleToNavabr();
 
- showDecks(getDecksArr());
+async function startStudyMode(deckId) {
+    if (isGuest) {
+        showSystemMessage('Please log in to use study mode.', 'info', true);
+        return;
+    }
+    try {
+        const data = await fetchData(`/api/cards/get?deckId=${deckId}`);
+        studyMode.cards = data.cards || [];
+        studyMode.deckId = deckId;
+        studyMode.currentIndex = 0;
+        studyMode.active = true;
 
-})
+        if (studyMode.cards.length === 0) {
+            showSystemMessage('This deck has no cards to study.', 'info', true);
+            return;
+        }
+
+        // Shuffle cards if desired (original script had a shuffle button)
+        studyMode.cards = shuffleArray(studyMode.cards);
+
+        renderStudyMode();
+    } catch (error) {
+        console.error('Failed to start study mode:', error);
+    }
+}
+
+async function scoreCard(rating) {
+    const currentCard = studyMode.cards[studyMode.currentIndex];
+    if (!currentCard) return;
+
+    try {
+        const result = await fetchData('/api/cards/rate', 'POST', {
+            card_id: currentCard.id,
+            rating: rating
+        });
+        if (result.success) {
+            showSystemMessage('Card scored!', 'info', true);
+        }
+    } catch (error) {
+        // Error handled by fetchData
+    }
+
+    studyMode.currentIndex++;
+    if (studyMode.currentIndex < studyMode.cards.length) {
+        renderStudyMode(); // Render next card
+    } else {
+        showSystemMessage('You have completed this deck!', 'info', false);
+        studyMode.active = false;
+        currentDeckId = null; // Reset current deck
+        if (document.getElementById('mainCenterDisplay')) { // Check if element exists
+            document.getElementById('mainCenterDisplay').innerHTML = `
+                <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                    <h2 class="text-info">Study Session Complete!</h2>
+                    <p class="lead">Great job! Select another deck or create new cards.</p>
+                </div>
+            `;
+        }
+    }
+}
+
+async function startExam(deckId) {
+    try{
+        const deck = decks.find(d => d.id == deckId);
+        if (!deck) return showSystemMessage('Deck not found.', 'error');
+
+        const response = await fetchData(`/api/cards/get?deckId=${deckId}`);
+        if (!response.success) {
+            throw {
+                type: 'Unsuccessfull attempt',
+                message: 'Could not get the cards.'
+            };
+        }
+        
+        const cards = response.cards;
+
+        if (!cards || cards.length < 4) {
+            return showSystemMessage('Not enough cards for an exam (min 4 needed).', 'error');
+        }
+
+        let index = 0;
+        let score = 0;
+        const total = cards.length;
+        const recordBefore = deck.record || 0;
+
+        // Shuffle the cards to randomize question order
+        const shuffledCards = [...cards].sort(() => 0.5 - Math.random());
+
+        const showQuestion = () => {
+            const currentCard = shuffledCards[index];
+            const correctAnswer = currentCard.backContent;
+
+            // Get 3 incorrect answers from other cards
+            const wrongAnswers = cards
+                .filter(c => c.id !== currentCard.id)
+                .map(c => c.backContent)
+                .sort(() => 0.5 - Math.random())
+                .slice(0, 3);
+            console.log(wrongAnswers)
+
+            const options = [...wrongAnswers, correctAnswer].sort(() => 0.5 - Math.random());
+            console.log(options)
+            // Render question
+            mainCenterDisplay.innerHTML = `
+                <div class="exam-question card-glass p-4 text-center">
+                    <h4 class="text-info mb-4">Question ${index + 1} of ${total}</h4>
+                    <p class="fs-4 mb-4">${escapeHtml(currentCard.frontContent)}</p>
+                    <div class="d-grid gap-3">
+                        ${options.map(option => `
+                            <button class="btn btn-outline-light exam-option">${escapeHtml(option)}</button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            // Add event listeners
+            document.querySelectorAll('.exam-option').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const isCorrect = btn.textContent.trim() === correctAnswer.trim();
+                    if (isCorrect) score++;
+                    index++;
+                    if (index < total) {
+                        showQuestion();
+                    } else {
+                        showResults();
+                    }
+                });
+            });
+        };
+
+        const showResults = async () => {
+            const newRecord = Math.round((score / total) * 100);
+
+            // Update record only if improved
+            if (newRecord > recordBefore) {
+                await fetchData('/api/decks/updateRecord', 'POST', {
+                    deck_id: deckId,
+                    record: newRecord
+                });
+            }
+
+            mainCenterDisplay.innerHTML = `
+                <div class="exam-results card-glass text-center p-4">
+                    <h3 class="text-success">Exam Complete!</h3>
+                    <p class="lead">Score: <strong>${score} / ${total}</strong></p>
+                    <p>Previous Record: <strong>${recordBefore}%</strong></p>
+                    <p>New Record: <strong>${Math.max(recordBefore, newRecord)}%</strong></p>
+                    <button class="btn btn-outline-info mt-3" onclick="renderDeckSpecs('${deckId}')">
+                        <span class="material-symbols-outlined">arrow_back</span> Back to Deck
+                    </button>
+                </div>
+            `;
+        };
+
+        showQuestion();
+    }catch(error){
+        console.error('Exam failed:', error);
+        showSystemMessage('Failed to start exam. Please try again.', 'error', true);
+    }
+}   
+
+// --- Event Listeners ---
+
+document.addEventListener('DOMContentLoaded', async () => {
+    
+    //Initial decks and categories population
+    if (!isGuest) {
+        await getCategories();
+        await renderDecksList(); 
+    }
 
 
+    renderNavbar(isGuest,userName); // Initial navbar render
 
+    
+    // --- Navbar & Global Buttons ---
+    const addCategoryBtn = document.getElementById('addCategoryBtn');
+    if (addCategoryBtn) addCategoryBtn.addEventListener('click', () => openCategoryModal());
+    
+    const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+    if (manageCategoriesBtn) manageCategoriesBtn.addEventListener('click', () => openCategoryModal());
+
+    const addDeckBtn = document.getElementById('addDeckBtn');
+    if (addDeckBtn) addDeckBtn.addEventListener('click', () => openDeckModal());
+
+    const addDeckBtnSmall = document.getElementById('addDeckBtnSmall');
+    if (addDeckBtnSmall) addDeckBtnSmall.addEventListener('click', () => openDeckModal()); 
+
+    const manageDecksBtn = document.getElementById('manageDecksBtn');
+    if (manageDecksBtn) manageDecksBtn.addEventListener('click', () => {
+        showSystemMessage('Manage Decks functionality coming soon!', 'info', true);
+    });
+    
+    const learnDeckBtn = document.getElementById('learnDeckBtn');
+    if (learnDeckBtn) learnDeckBtn.addEventListener('click', () => {
+        if (currentDeckId) {
+            startStudyMode(currentDeckId);
+        } else {
+            showSystemMessage('Please select a deck from the left panel to start studying.', 'info', true);
+        }
+    });
+
+    const takeTestBtn = document.getElementById('takeTestBtn');
+    if (takeTestBtn) takeTestBtn.addEventListener('click', () => {
+        if (currentDeckId) {
+            startExam(currentDeckId);
+        } else {
+            showSystemMessage('Please select a deck from the left panel to start an exam.', 'info', true);
+        }
+    });
+
+    // Logout button (delegated to body)
+    document.body.addEventListener('click', async function(event) {
+        if (event.target.classList.contains('logoutBtn')) {
+            event.preventDefault();
+            try {
+              
+                const result = await fetchData('/api/users/logout', 'POST'); 
+                
+                if (result.success) {
+                    showSystemMessage(result.message, 'info');
+                    isGuest = true;
+                    userName = 'guest';
+                    renderNavbar(isGuest, userName);
+                    await renderDecksList(); 
+                    if (document.getElementById('mainCenterDisplay')) {
+                        document.getElementById('mainCenterDisplay').innerHTML = `
+                            <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                                <h2 class="text-info">Welcome to Flashcards V1.0!</h2>
+                                <p class="lead">Select a deck from the left to view cards or start studying.</p>
+                                <p>Use the navigation bar to add new decks or categories.</p>
+                            </div>
+                        `; 
+                    }
+                    currentDeckId = null;
+                    window.location.href = 'index.php'; 
+                } else {
+                    showSystemMessage(result.message, 'error', false);
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+    });
+
+    // --- Deck List Interactions (Delegation) ---
+    const decksNameList = document.getElementById('decksNameList');
+    if (decksNameList) {
+        decksNameList.addEventListener('click', async (event) => {
+            const deckItem = event.target.closest('.deck-item');
+            if (!deckItem) return;
+
+            const deckId = deckItem.dataset.deckId;
+
+            // Handle deck selection (view cards)
+            if (event.target.tagName === 'H6' || event.target.classList.contains('deck-item')) {
+                // Remove active class from all other decks
+                document.querySelectorAll('.deck-item').forEach(item => item.classList.remove('active'));
+                // Add active class to the clicked deck
+                deckItem.classList.add('active');
+
+                currentDeckId = deckId;
+                // await renderCardsList(deckId); // Render cards for the selected deck
+                renderDeckSpecs(deckId);
+            }
+
+        });
+    }
+
+
+    // --- Middle Section Interactions (Delegation) ---
+    const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+    if (mainCenterDisplay) {
+        mainCenterDisplay.addEventListener('click', async (event) => {
+            // Add Card Button
+            if (event.target.closest('.add-card-to-deck-btn')) {
+                const deckId = event.target.closest('.add-card-to-deck-btn').dataset.deckId;
+                openCardModal(deckId);
+            }
+
+            // Start Study Button
+            if (event.target.closest('.study-deck-btn')) {
+                const deckId = event.target.closest('.study-deck-btn').dataset.deckId;
+                startStudyMode(deckId);
+            }
+
+            // Start Exam Button
+            if (event.target.closest('.quiz-deck-btn')) {
+                const deckId = event.target.closest('.quiz-deck-btn').dataset.deckId;
+                startExam(deckId);
+            }
+
+            // Handle Edit Deck button
+            if (event.target.closest('.edit-deck-btn')) {
+                const deckId = event.target.closest('.edit-deck-btn').dataset.deckId;
+                const deckToEdit = await getDeckById(deckId);
+                if (deckToEdit) {
+                    openDeckModal(deckToEdit);
+                }
+            }
+
+            // Handle Delete Deck button
+            if (event.target.closest('.delete-deck-btn')) {
+                if (confirm('Are you sure you want to delete this deck and all its cards?')) {
+                    try {
+                        const deckId = event.target.closest('.delete-deck-btn').dataset.deckId;
+                        const result = await deleteDeckById(deckId)
+                        if (result.success) {
+                            //update decks
+                            decks = decks.filter(deck => deck.deck_id !== deckId);
+                            showSystemMessage(result.message, 'info');
+                            await renderDecksList(); // Re-render decks
+                            if (document.getElementById('mainCenterDisplay')) { // Check if element exists
+                                document.getElementById('mainCenterDisplay').innerHTML = `
+                                    <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                                        <h2 class="text-info">Welcome to Flashcards V1.0!</h2>
+                                        <p class="lead">Select a deck from the left to view cards or start studying.</p>
+                                        <p>Use the navigation bar to add new decks or categories.</p>
+                                    </div>
+                                `; // Clear center display
+                            }
+                            currentDeckId = null;
+                        } else {
+                            showSystemMessage(result.message, 'error', false);
+                        }
+                    } catch (error) {
+                        // Error handled by fetchData
+                    }
+                }
+            }
+
+            // Exit Study Button
+            if (studyMode.active && event.target.id === 'exitStudyBtn') {
+                studyMode.active = false;
+                currentDeckId = null; 
+                if (document.getElementById('mainCenterDisplay')) { 
+                    document.getElementById('mainCenterDisplay').innerHTML = `
+                        <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                            <h2 class="text-info">Welcome to Flashcards V1.0!</h2>
+                            <p class="lead">Select a deck from the left to view cards or start studying.</p>
+                            <p>Use the navigation bar to add new decks or categories.</p>
+                        </div>
+                    `;
+                }
+                showSystemMessage('Study session ended.', 'info', true);
+            }
+
+            // Handle clicking on a search result deck
+            if (event.target.closest('.search-result-deck')) {
+                event.preventDefault(); 
+                const clickedDeckElement = event.target.closest('.search-result-deck');
+                const deckId = clickedDeckElement.dataset.deckId;
+
+                const deckItemInLeftPanel = document.querySelector(`.deck-item[data-deck-id="${deckId}"]`);
+                if (deckItemInLeftPanel) {
+                    // Remove active class from all other decks
+                    document.querySelectorAll('.deck-item').forEach(item => item.classList.remove('active'));
+                    // Add active class to the clicked deck
+                    deckItemInLeftPanel.classList.add('active');
+
+                    currentDeckId = deckId;
+                    await renderCardsList(deckId);
+                } else {
+                    showSystemMessage('Deck not found in your list. Displaying cards if available.', 'info', true);
+                    currentDeckId = deckId;
+                    await renderCardsList(deckId); 
+                }
+            }
+
+            // Handle clicking on a search result card
+            if (event.target.closest('.search-result-card')) {
+                const clickedCardElement = event.target.closest('.search-result-card');
+                const cardId = clickedCardElement.dataset.cardId;
+                const deckId = clickedCardElement.dataset.deckId;
+
+                // First, select the associated deck in the left panel
+                const deckItemInLeftPanel = document.querySelector(`.deck-item[data-deck-id="${deckId}"]`);
+                if (deckItemInLeftPanel) {
+                    document.querySelectorAll('.deck-item').forEach(item => item.classList.remove('active'));
+                    deckItemInLeftPanel.classList.add('active');
+                    currentDeckId = deckId;
+                    await renderCardsList(deckId); // Render all cards for that deck
+
+
+                } else {
+                    showSystemMessage('Associated deck not found in your list. Displaying cards for this deck.', 'info', true);
+                    currentDeckId = deckId;
+                    await renderCardsList(deckId);
+                }
+            }
+
+            // Handle clicking on a card from the main cards list
+            if (event.target.closest('.card-clickable')) {
+                const clickedCardElement = event.target.closest('.card-clickable');
+                const cardId = clickedCardElement.dataset.cardId;
+                const deckId = clickedCardElement.dataset.deckId;
+                const cardToOpen = cards.find(c => c.id == cardId);
+
+                if (cardToOpen) {
+                    const deck = decks.find(d => d.id == deckId);
+                    if (deck) {
+                        renderSingleCardView(cardToOpen, deck);
+                    } else {
+                        showSystemMessage('Associated deck not found for this card.', 'error', true);
+                    }
+                } 
+            }
+
+            // Handle clicking on a search result card (delegated to mainCenterDisplay)
+            if (event.target.closest('.search-result-card')) {
+                const clickedCardElement = event.target.closest('.search-result-card');
+                const cardId = clickedCardElement.dataset.cardId;
+                const deckId = clickedCardElement.dataset.deckId;
+
+                const cardToOpen = cards.find(c => c.id == cardId); 
+                const deck = decks.find(d => d.id == deckId); 
+
+                if (cardToOpen && deck) {
+                    // Directly render the single card view
+                    renderSingleCardView(cardToOpen, deck);
+                    // Also, select the associated deck in the left panel for visual consistency
+                    const deckItemInLeftPanel = document.querySelector(`.deck-item[data-deck-id="${deckId}"]`);
+                    if (deckItemInLeftPanel) {
+                        document.querySelectorAll('.deck-item').forEach(item => item.classList.remove('active'));
+                        deckItemInLeftPanel.classList.add('active');
+                        currentDeckId = deckId;
+                    }
+                } else {
+                    showSystemMessage('Associated deck or card data not found.', 'error', true);
+                }
+            }
+        });
+    }
+    
+
+    // --- Category Modal Interactions ---
+    const categoryModalEl = document.getElementById('categoryModal');
+    if (categoryModalEl) { 
+        categoryModalEl.addEventListener('click', async (event) => {
+            // Edit Category Button
+            if (event.target.closest('.edit-category-btn')) {
+                const btn = event.target.closest('.edit-category-btn');
+                const categoryId = btn.dataset.categoryId;
+                const categoryName = btn.dataset.categoryName;
+
+                const newName = prompt(`Edit category "${categoryName}":`, categoryName);
+                if (newName && newName.trim() !== categoryName) {
+                    try {
+                        const result = await fetchData('/api/categories/edit.php', 'POST', { id: categoryId, name: newName.trim() });
+                        if (result.success) {
+                            showSystemMessage(result.message, 'info');
+                            await renderCategoriesList(document.getElementById('categoryModal').querySelector('.modal-body'));
+                            await renderDecksList(); 
+                        } else {
+                            showSystemMessage(result.message, 'error', false);
+                        }
+                    } catch (error) {
+                        // Handled by fetchData
+                    }
+                }
+            }
+
+            // Delete Category Button
+            if (event.target.closest('.delete-category-btn')) {
+                const categoryId = event.target.closest('.delete-category-btn').dataset.categoryId;
+                
+                if (confirm('Are you sure you want to delete this category? All decks in this category will become uncategorized.')) {
+                    try {
+                        const result = await fetchData('/api/categories/delete.php', 'POST', { id: categoryId });
+                        if (result.success) {
+                            showSystemMessage(result.message, 'info');
+                            await renderCategoriesList(document.getElementById('categoryModal').querySelector('.modal-body'));
+                            await renderDecksList(); 
+                        } else {
+                            showSystemMessage(result.message, 'error', false);
+                        }
+                    } catch (error) {
+                        // Handled by fetchData
+                    }
+                }
+            }
+        });
+    }
+
+    // --- Search Functionality ---
+    const deckSearchInput = document.getElementById('deckSearchInput');
+    const searchCardsChkBx = document.getElementById('searchCardsChkBx');
+    const searchBtn = document.getElementById('searchBtn');
+
+    if (deckSearchInput && searchCardsChkBx && searchBtn) { 
+        async function performSearch() {
+            const query = deckSearchInput.value.trim();
+            const searchCards = searchCardsChkBx.checked;
+
+            if (query.length < 2 && query.length !== 0) { 
+                showSystemMessage('Please enter at least 2 characters to search.', 'info', true);
+                return;
+            }
+            
+            if (query.length === 0) {
+                await renderDecksList(); 
+                if (document.getElementById('mainCenterDisplay')) { 
+                    document.getElementById('mainCenterDisplay').innerHTML = `
+                        <div id="welcomeMessage" class="text-center text-white-50 mt-5">
+                            <h2 class="text-info">Welcome to Flashcards V1.0!</h2>
+                            <p class="lead">Select a deck from the left to view cards or start studying.</p>
+                            <p>Use the navigation bar to add new decks or categories.</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            try {
+                const data = await fetchData(`/api/search/get?query=${encodeURIComponent(query)}&searchCards=${searchCards}`);
+                
+                const foundDecks = data.decks || [];
+                const foundCards = data.cards || [];
+
+                const mainCenterDisplay = document.getElementById('mainCenterDisplay');
+                if (!mainCenterDisplay) return; 
+
+                mainCenterDisplay.innerHTML = '';
+
+                // Add a main search results header
+                const searchHeader = document.createElement('h4');
+                searchHeader.className = 'text-info mb-3';
+                searchHeader.textContent = `Search Results for "${escapeHtml(query)}"`;
+                mainCenterDisplay.appendChild(searchHeader);
+
+                // --- Render Decks Section ---
+                const decksSection = document.createElement('div');
+                decksSection.className = 'mb-4';
+                decksSection.innerHTML = `
+                    <h5 class="text-white-50 border-bottom pb-2 mb-3">Decks Found:</h5>
+                    <div id="searchResultsDecks" class="list-group"></div>
+                `;
+                mainCenterDisplay.appendChild(decksSection);
+                const searchResultsDecksContainer = decksSection.querySelector('#searchResultsDecks');
+
+                if (foundDecks.length > 0) {
+                    // Update global decks array with filtered decks for consistency
+                    decks = foundDecks; 
+                    renderDecksList(); 
+
+                    foundDecks.forEach(deck => {
+                        const deckItem = document.createElement('a');
+                        deckItem.href = "#"; 
+                        deckItem.className = 'list-group-item list-group-item-action bg-secondary text-white border-secondary mb-2 rounded search-result-deck';
+                        deckItem.dataset.deckId = deck.id;
+                        deckItem.innerHTML = `
+                            <h6 class="mb-1 text-info">${escapeHtml(deck.deckName)}</h6>
+                            <p class="mb-1 small text-white-50">${escapeHtml(deck.deckDescription || 'No description.')}</p>
+                            <small class="text-muted">Cards: ${deck.totalCards}, Mastery: ${deck.mastery}%</small>
+                        `;
+                        searchResultsDecksContainer.appendChild(deckItem);
+                    });
+                } else {
+                    searchResultsDecksContainer.innerHTML = '<p class="text-white-50">No decks found matching your search criteria.</p>';
+                    decks = []; 
+                    renderDecksList(); 
+                }
+
+                // --- Render Cards Section (only if searchCards is true) ---
+                if (searchCards) {
+                    const cardsSection = document.createElement('div');
+                    cardsSection.innerHTML = `
+                        <h5 class="text-white-50 border-bottom pb-2 mb-3 mt-4">Cards Found:</h5>
+                        <div id="searchResultsCards" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3"></div>
+                    `;
+                    mainCenterDisplay.appendChild(cardsSection);
+                    const searchResultsCardsContainer = cardsSection.querySelector('#searchResultsCards');
+
+                    if (foundCards.length > 0) {
+                        foundCards.forEach(card => {
+                            const cardCol = document.createElement('div');
+                            cardCol.className = 'col';
+                            cardCol.innerHTML = `
+                                <div class="card h-100 shadow-sm search-result-card" data-card-id="${card.id}" data-deck-id="${card.deckId}">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${escapeHtml(card.frontContent)}</h5>
+                                        <p class="card-text text-white-50">${escapeHtml(card.backContent)}</p>
+                                        <small class="text-muted">From Deck: ${escapeHtml(foundDecks.find(d => d.id == card.deckId)?.deckName || 'N/A')}</small>
+                                    </div>
+                                </div>
+                            `;
+                            searchResultsCardsContainer.appendChild(cardCol);
+                        });
+                    } else {
+                        searchResultsCardsContainer.innerHTML = '<p class="text-white-50 w-100">No cards found matching your search criteria.</p>';
+                    }
+                }
+
+            } catch (error) {
+                console.error('Search failed:', error);
+                showSystemMessage('Search failed. Please try again.', 'error', true);
+                if (document.getElementById('mainCenterDisplay')) { 
+                    document.getElementById('mainCenterDisplay').innerHTML = `
+                        <div id="welcomeMessage" class="text-center text-danger mt-5">
+                            <h2 class="text-danger">Search Error!</h2>
+                            <p class="lead">Failed to perform search. Please check your connection or try again later.</p>
+                        </div>
+                    `;
+                }
+                decks = []; 
+                renderDecksList(); 
+            }
+        }
+
+        deckSearchInput.addEventListener('input', performSearch); 
+        searchBtn.addEventListener('click', performSearch); 
+    }
+});

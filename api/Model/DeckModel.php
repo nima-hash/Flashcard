@@ -1,20 +1,16 @@
 <?php
-require_once PROJECT_ROOT_PATH . "/Model/Database.php";
+require_once __DIR__ . "/Database.php";
 class DeckModel extends Database
 {
-    // public function getDecks($limit)
-    // {
-    //     return $this->select("SELECT * FROM Users ORDER BY user_id ASC LIMIT ?", ["i", $limit]);
-    // }
 
-    public function getDeck($vars)
+    public function getDeckById($vars)
     {    
-        return $this->select("SELECT * FROM Decks WHERE deckId = ? AND user_id = ?", $vars);
+        return $this->select("SELECT * FROM Decks WHERE id = ? AND user_id = ?", $vars);
     }
 
-    public function getDecks($user)
+    public function getAllDecksForUser($userId)
     {
-        return $this->select("SELECT * FROM Users WHERE userName = ?", [$user]);
+        return $this->select("SELECT * FROM Decks WHERE user_id = ?", [$userId]);
     }
 
     public function registerUser($userData)
@@ -24,22 +20,24 @@ class DeckModel extends Database
     
     }
 
-    public function addDeck($params)
+    public function createDeck($params)
     {
-        // $params = "decks = '" . $data . "'";
-        // $condition = "user_id = '" . $userId . "'";
-        
-       
-        // array_push($data, $userId);
-        
-        return $this->post("INSERT INTO Decks (deckName, deckCategory, deckDescription, user_id, deck_id) VALUES (? ,? ,? ,? ,?)", $params);
+    
+        return $this->post("INSERT INTO Decks (deckName, category_id, deckDescription, user_id) VALUES (? ,? ,? ,?)", $params);
         
     }
 
     public function updateDeck($deckParams)
     {
         
-        return $this->update("UPDATE Decks SET totalCards = ? WHERE deck_id = ? AND user_id = ?", $deckParams);
+        return $this->update("UPDATE Decks SET totalCards = ? WHERE id = ? AND user_id = ?", $deckParams);
+
+    }
+
+    public function updateDeckRecord($deckParams)
+    {
+        
+        return $this->update("UPDATE Decks SET record = ? WHERE id = ? AND user_id = ?", $deckParams);
 
     }
 
@@ -53,7 +51,38 @@ class DeckModel extends Database
     public function updateDeckData($deckParams)
     {
         
-        return $this->update("UPDATE Decks SET mastery = ?, totalCards = ?, record = ?, rating = ? WHERE deck_id = ? AND user_id = ?", $deckParams);
+        return $this->update("UPDATE Decks SET mastery = ?, totalCards = ?, record = ?, rating = ? WHERE id = ? AND user_id = ?", $deckParams);
 
     }
+
+    public function deleteDeck ($deckId) {
+        return $this->delete("DELETE FROM Decks WHERE id=?", $deckId);
+    }
+
+    public function getDeckId($params) {
+        return $this->select("SELECT * FROM Decks WHERE id = ?", [$params['deckId']]);
+    }
+
+    public function incrementTotalCards($params) {
+        try {
+
+            return $this->update("UPDATE Decks SET totalCards = totalCards + 1 WHERE id = ?", $params);
+
+        } catch (PDOException $e) {
+            error_log("Error in DeckModel::incrementTotalCards: " . $e->getMessage());
+            throw new Exception("Database error incrementing total cards: " . $e->getMessage());
+        }
+    }
+
+    public function decrementTotalCards($params)
+    {
+        try {
+           
+            return $this->update("UPDATE Decks SET totalCards = totalCards - 1 WHERE id = ?", $params);
+        } catch (PDOException $e) {
+            error_log("Error in DeckModel::decrementTotalCards: " . $e->getMessage());
+            throw new Exception("Database error decrementing total cards: " . $e->getMessage());
+        }
+    }
+    
 }

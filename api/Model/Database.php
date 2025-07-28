@@ -1,13 +1,5 @@
 <?php
-require_once "/Applications/MAMP/htdocs/Flashcards/config/database.php";
-
-// use function PHPSTORM_META\type;
-// $dotenv = file(__DIR__ . "/databankconfig.env", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-// foreach ($dotenv as $line) {
-//     putenv(trim($line));
-// }
-
-
+require_once __DIR__ . "/../../config/database.php";
 
 class Database extends Connection
 {
@@ -19,71 +11,43 @@ class Database extends Connection
 
     public function select($query , $params = [])
     {
-        
         try {
-            
             $stmt = $this->executeStatement( $query , $params );
             return $stmt->fetchAll();	
         } catch(Exception $e) {
-            throw New Exception( $e->getMessage() );
+            throw New Exception( "Database SELECT Error: " . $e->getMessage() );
         }
-        // return false;
     }
 
     public function post($query = "" , $params=[])
     {
-        return $this->executeStatement($query, $params);
+       try {
+            $this->executeStatement($query, $params);
+            return $this -> insertedId();
+        } catch(Exception $e) {
+            throw New Exception( "Database POST Error: " . $e->getMessage() );
+        }
+
     }
 
     public function update($query ="", $params=[])
     {
-        return $this->executeStatement($query, $params);
-
-        // try {
-           
-            
-        //     $stmt = $this->executeStatement( $query , $params);
-            
-        //     // $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);	
-            
-        //     if (!$stmt)
-        //     { 
-        //         throw new Exception("can not update");
-        //     }
-        //     $stmt->close();
-        //     return true;
-
-            			
-        //     // return $result;
-        //     } catch(Exception $e) {
-        //     throw New Exception( $e->getMessage() );
-        // }
+        try {
+        $stmt = $this->executeStatement($query, $params);   
+        return  $stmt -> rowCount() > 0;
+        } catch(Exception $e) {
+            throw New Exception( "Database Error: " . $e->getMessage() );
+        }
     }
 
     public function delete($query ="", $params=[])
-    {
-        
-        return $this->executeStatement($query, $params);
-
-        // try {
-
-            
-        //     $stmt = $this->executeStatement( $query , $params);
-            
-        //     // $result = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);	
-            
-        //     if (!$stmt)
-        //     { 
-        //         throw new Exception("can not update");
-        //     }
-        //     $stmt->close();
-        //     return true;
-
-            			
-        //     // return $result;
-        //     } catch(Exception $e) {
-        //     throw New Exception( $e->getMessage() );
-        // }
+    {     
+        try {
+            $stmt = $this->executeStatement($query, $params);
+            return  $stmt -> rowCount() > 0;
+        } catch(Exception $e) {
+            throw New Exception( "Database Error: " . $e->getMessage() );
+        }
     }
 
     private function executeStatement($query = "" , $params = [])
@@ -95,9 +59,7 @@ class Database extends Connection
             if (!$stmt) {
                 throw new Exception("SQL Prepare Error: " . implode(" ", $this->connection->errorInfo()), 500);
             }
-             // Debug: Log the query and parameters
-        // error_log("Executing Query: " . $query);
-        // error_log("With Parameters: " . print_r($params, true));
+
             // Bind parameters dynamically
             if ($params) {
                 $index = 1;
@@ -118,10 +80,13 @@ class Database extends Connection
                         case 'boolean':
                             $pdoType = PDO::PARAM_BOOL;
                             break;
+                        case 'NULL':
+                            $pdoType = PDO::PARAM_NULL;
+                            break;
                         default:
                             throw new Exception("Unacceptable type for parameter: " . $param, 400);
                     }
-                    
+
                     $stmt->bindValue($index,$param, $pdoType);
                     
                     $index += 1;
@@ -136,63 +101,33 @@ class Database extends Connection
 
           
           } catch(PDOException $e) {
-              throw New Exception("Database Query Error: " . $e->getMessage(), 500);
+              throw New Exception("Database Query Error: " . $e->getMessage(), $e->getCode());
           }	
     }
     
-    private function test ($query = "" , $params = [])
+    public function startTransaction(): void
     {
-        
-        try {
+        if (!$this->connection->inTransaction()) {
+            $this->connection->beginTransaction();
+        }
+    }
 
-            $stmt = $this->connection->prepare( $query );
-            if (strpos($query, 'INSER')) {
-                print_r($query);
-                die;
-            }
-            // Bind parameters dynamically
-            if ($params) {
-                $index = 1;
-                // Loop through each parameter and determine the type
-                foreach ($params as $param) {
-                    
-                    // Determine the type of each parameter (i = integer, d = double, s = string, b = blob)
-                    $type = gettype($param);
-                    switch ($type) {
-                        case 'string':
-                            $pdoType = PDO::PARAM_STR;
-                            break;
-                        case 'integer':
-                            $pdoType = PDO::PARAM_INT;
-                            break;
-                        case 'double':
-                            $pdoType = PDO::PARAM_STR;
-                            break;
-                        case 'boolean':
-                            $pdoType = PDO::PARAM_BOOL;
-                            break;
-                        default:
-                            throw new Exception("Unacceptable type for parameter: " . $param);
-                    }
-                    
-                    $stmt->bindValue($index,$param, $pdoType);
-                    $index += 1;
-                }
-                
-                $stmt->execute();
-                return $stmt;
-            }
+        public function commitTransaction(): void
+    {
+        if ($this->connection->inTransaction()) {
+            $this->connection->commit();
+        }
+    }
 
-            // if($stmt === false) {
-            //     throw New Exception("Unable to do prepared statement: " . $query);
-            // }
-           
-            
-            //   $stmt->execute();
-             
-            //   return $stmt;
-          } catch(PDOException $e) {
-              throw New Exception("Database Query Error: " . $e->getMessage() );
-          }	
+        public function rollBackTransaction(): void
+    {
+        if ($this->connection->inTransaction()) {
+            $this->connection->rollBack();
+        }
+    }
+    
+    public function isInTransaction(): bool
+    {
+        return $this->connection->inTransaction();
     }
   }

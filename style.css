@@ -1,0 +1,396 @@
+/* === Color Theme Variables === */
+:root {
+  --color-bg: #2f76c8;
+  --color-surface: linear-gradient(135deg, #1e2fee, #61686f);
+  --color-accent: #00bcd4;
+  --color-accent-light: #4dd0e1;
+  --color-success: #4caf50;
+  --color-warning: #ff9800;
+  --color-danger: #f44336;
+  --color-text-light: #ffffffcc;
+  --color-text-muted: #ffffff80;
+  --color-border: #2c2c3e;
+  --bg-dark: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  --bg-left-panel: linear-gradient(145deg, #2a2a72, #009ffd);
+  --bg-right-panel: linear-gradient(135deg, #3e677b, #414345);
+  --text-light: #f8f9fa;
+  --text-muted: #ced4da;
+  --accent: #00d4ff;
+  --modal-bg: linear-gradient(135deg, #1e2a45, #243b55);
+  --border-light: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(0, 212, 255, 0.6);
+
+}
+
+/* === Base Layout === */
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text-light);
+  margin: 0;
+  padding: 0;
+}
+
+.main-Cont {
+  width: 100%;
+  padding: 1rem;
+}
+
+.main-Left {
+  background: var(--bg-left-panel);
+  border-right: 2px solid var(--border-light);
+  border-radius: 1rem 0 0 1rem;
+  color: var(--text-light);
+  min-height: 85vh;
+  overflow-y: auto;
+}
+
+.main-Left, .main-Center {
+  transition: background 0.3s ease, border 0.3s ease;
+}
+
+.main-Center {
+  background: var(--bg-right-panel);
+  border-left: 2px solid var(--border-light);
+  border-radius: 0 1rem 1rem 0;
+  color: var(--text-light);
+  min-height: 85vh;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.deck-item {
+  background-color: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 12px 15px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  color: var(--text-light);
+  transition: background 0.3s, border 0.3s;
+}
+
+.deck-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--accent);
+}
+
+.deck-item.active {
+  background: linear-gradient(to right, #00d2ff, #3a7bd5);
+  color: #fff;
+  border-color: var(--border-accent);
+}
+
+
+/* === Deck Cards === */
+.deck-spec-card {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  max-width: 960px;
+  margin: 2rem auto;
+}
+
+.deck-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.deck-title {
+  font-size: 2rem;
+  color: var(--color-accent);
+}
+
+.deck-category {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+}
+
+.deck-mastery {
+  text-align: right;
+  font-size: 1rem;
+  color: var(--color-success);
+}
+
+.deck-meta p {
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--color-text-light);
+}
+
+/* === Modals === */
+
+.modal-content.card-glass {
+  background: var(--modal-bg) !important; /* Dark blue gradient */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  color: #f0f4f8;
+}
+
+.form-control.bg-secondary,
+.form-select.bg-secondary {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #f0f4f8 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* === Deck Action Buttons === */
+.deck-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.deck-actions .btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-light);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+}
+
+.deck-actions .btn:hover {
+  background: var(--color-accent-light);
+  color: #000;
+  transform: scale(1.02);
+}
+
+.btn-text {
+  margin-left: 0.5rem;
+}
+
+.deck-actions .left,
+.deck-actions .right {
+  display: flex;
+  gap: 1rem;
+}
+
+/* Hide button text on smaller screens */
+@media (max-width: 600px) {
+  .btn-text {
+    display: none;
+  }
+}
+
+/* === Flashcards === */
+.card {
+  background: var(--color-surface);
+  border-radius: 16px;
+  padding: 1rem;
+  color: var(--color-text-light);
+  transition: transform 0.3s ease;
+}
+
+.card:hover {
+  transform: scale(1.015);
+}
+
+.card-front,
+.card-back {
+  font-size: 1.05rem;
+  transition: opacity 0.3s ease;
+}
+
+/* === Study Card Flip === */
+.study-card {
+  background: var(--color-surface);
+  border-radius: 20px;
+  width: 100%;
+  height: 300px;
+  perspective: 1000px;
+  position: relative;
+}
+
+.study-card-inner {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+.study-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.study-card-front,
+.study-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  padding: 2rem;
+  border-radius: 20px;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  background: var(--color-surface);
+}
+
+.study-card-back {
+  transform: rotateY(180deg);
+}
+
+/* === Misc === */
+.toast {
+  border-radius: 12px;
+  font-size: 0.95rem;
+}
+
+#mainCenterDisplay {
+  padding: 2rem;
+}
+
+
+/* === Animations === */
+
+/* Toast fade-in and fade-out */
+@keyframes toastFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes toastFadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(20px); }
+}
+.toast.showing {
+  animation: toastFadeIn 0.5s ease forwards;
+}
+.toast.hiding {
+  animation: toastFadeOut 0.5s ease forwards;
+}
+
+/* Card entry animation */
+@keyframes cardEnter {
+  from {
+    transform: scale(0.95) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+.card-animated {
+  animation: cardEnter 0.5s ease-in-out;
+}
+
+
+/* Search Result Specific Styles */
+.search-result-deck, .search-result-card {
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+    cursor: pointer;
+}
+
+.search-result-deck:hover, .search-result-card:hover {
+    background: var(--modal-bg) !important; /* Lighter hover */
+    border-color: var(--accent-color) !important; /* Accent border on hover */
+    transform: translateY(-2px); /* Slight lift effect */
+}
+
+/* Highlight for selected card in search results */
+.card.highlighted-card {
+    border: 2px solid var(--accent-color) !important;
+    box-shadow: 0 0 20px rgba(13, 202, 240, 0.6) !important;
+    transform: scale(1.02);
+    transition: all 0.3s ease-in-out;
+}
+
+/* Styles for buttons overlay on card back */
+.card-actions-overlay {
+    position: absolute;
+    bottom: 15px; /* Adjust as needed */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    opacity: 0; /* Hidden by default */
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Show actions when card is flipped (or when parent .study-card-back is hovered) */
+.study-card-back .card-actions-overlay {
+    opacity: 1; /* Always visible when back is shown */
+}
+
+.exam-question, .exam-results {
+    max-width: 700px;
+    margin: auto;
+    border-radius: 1rem;
+    background: var(--modal-bg);
+    backdrop-filter: blur(8px);
+    color: var(--text-color);
+}
+
+.exam-option {
+    padding: 0.8rem 1.2rem;
+    font-size: 1.1rem;
+    border-radius: 0.6rem;
+    transition: all 0.2s ease;
+}
+
+.exam-option:hover {
+    background-color: var(--accent-color);
+    color: var(--primary-bg);
+}
+
+/*profile */
+
+.profile-card {
+    max-width: 700px;
+    width: 100%;
+    /* Override default card background if necessary for darker effect */
+    background: linear-gradient(145deg, rgba(30, 30, 30, 0.95), rgba(20, 20, 20, 0.95)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+#profilePictureDisplay {
+    border: 3px solid var(--accent-color); /* Accent border for profile pic */
+    box-shadow: 0 0 15px rgba(13, 202, 240, 0.5); /* Subtle glow */
+}
+
+.profile-card .form-label {
+    color: var(--text-color); /* Ensure labels are visible */
+}
+
+/* Ensure buttons have consistent styling */
+.profile-card .btn-primary,
+.profile-card .btn-outline-info, /* Added for Edit button */
+.profile-card .btn-secondary{
+    /* Inherit or define specific styles if needed, e.g., */
+    transition: all 0.3s ease;
+}
+
+.profile-card .btn-primary:hover,
+.profile-card .btn-outline-info:hover  {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    
+}
+
+/* Responsive adjustments for profile card */
+@media (max-width: 768px) {
+    .profile-card {
+        padding: 1.5rem !important;
+    }
+}
+
+/* Style for read-only inputs to make them look less like active inputs */
+.form-control[readonly] {
+    background-color: #3a475a !important; /* Slightly different background */
+    cursor: default; /* Not clickable */
+    opacity: 0.8; /* Slightly faded */
+}

@@ -1,65 +1,43 @@
 <?php
-session_start();
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/../../../config/functions.php';
 
 class BaseController
 {
-        /** 
-    * __call magic method. 
-    */
-        public function __call($name, $arguments)
-        {
-            $this->sendOutput('', array('HTTP/1.1 404 Not Found'));
+    
+    //   automatically called when invoking inaccessible methods.
+     
+    public function __call($name, $arguments)
+    {
+        $this->sendOutput(json_encode(array('error' => 'API method not found.')), 404);
+    }
+
+    //  Send API output.
+    protected function sendOutput($data, $statusCode = 200, $httpHeaders = array())
+    {
+        // header_remove('Set-Cookie'); 
+        http_response_code($statusCode);
+
+        // Set Content-Type header explicitly if not already set in $httpHeaders
+        $contentTypeSet = false;
+        foreach ($httpHeaders as $header) {
+            if (stripos($header, 'Content-Type:') === 0) {
+                $contentTypeSet = true;
+                break;
+            }
         }
-        /** 
-    * Get URI elements. 
-    * 
-    * @return array 
-    */
-        protected function getUriSegments()
-        {
-            $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-            $uri = explode( '/', $uri );
-            return $uri;
-        }
-        /** 
-    * Get querystring params. 
-    * 
-    * @return array 
-    */
-        protected function getQueryStringParams()
-        {
-            
-            parse_str($_SERVER['QUERY_STRING'], $query);
-            
-            return $query;
+        if (!$contentTypeSet) {
+            header('Content-Type: application/json');
         }
 
-        // protected function getFragmentStringParams()
-        // {
-        //     return parse_str($_SERVER['QUERY_STRING'], $query);
-        // }
-        /** 
-     * Send API output. 
-    * 
-    * @param mixed $data 
-    * @param string $httpHeader 
-    */
-        protected function sendOutput($data, $httpHeaders=array())
-        {
-            header_remove('Set-Cookie');
-            // var_dump($httpHeaders);
-            // die; 
-            if (is_array($httpHeaders) && count($httpHeaders)) {
-               
-                // foreach ($httpHeaders as $httpHeader) {
-                //     header($httpHeader);
-                  
-                // }
-                header($httpHeaders[0]);
-                http_response_code($httpHeaders[1]);
-                
-            }
-            echo $data;
-            exit;
+        // Apply any additional headers
+        foreach ($httpHeaders as $httpHeader) {
+            header($httpHeader);
         }
+        
+        echo $data;
+        exit;
+    }
 }
